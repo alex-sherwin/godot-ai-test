@@ -1,0 +1,151 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it: a cancelled Pages
+# deployment can leave the site in a half-published state.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  GODOT_VERSION: 4.7.1-stable
+  # Export templates live in a directory named after the literal contents of the
+  # archive's version.txt — dots, no "-stable" suffix.
+  GODOT_TEMPLATE_DIR: 4.7.1.stable
+
+jobs:
+  build:
+    name: Export game and build site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Restore cached Godot editor and export templates
+        id: cache-godot
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: godot-4.7.1-stable-linux
+          path: |
+            ~/godot-bin
+            ~/.local/share/godot/export_templates
+
+      - name: Install Godot and web export templates
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          base="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}"
+
+          mkdir -p "$HOME/godot-bin"
+          curl -fsSL -o /tmp/godot.zip \
+            "${base}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          # The editor archive contains a single bare file, no wrapping directory.
+          unzip -q -j /tmp/godot.zip -d "$HOME/godot-bin"
+          mv "$HOME/godot-bin/Godot_v${GODOT_VERSION}_linux.x86_64" "$HOME/godot-bin/godot"
+          chmod +x "$HOME/godot-bin/godot"
+
+          # The full template archive is ~1.28 GB; we only need the two
+          # single-threaded web templates plus version.txt. -j flattens, because
+          # the files must sit directly in the version directory rather than
+          # under a nested templates/ folder. Extract BOTH debug and release:
+          # --export-release validates both paths and logs an error for a
+          # missing one even though it still succeeds.
+          templates="$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}"
+          mkdir -p "$templates"
+          curl -fsSL -o /tmp/templates.tpz \
+            "${base}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          unzip -q -j /tmp/templates.tpz \
+            'templates/web_nothreads_release.zip' \
+            'templates/web_nothreads_debug.zip' \
+            'templates/version.txt' \
+            -d "$templates"
+          rm -f /tmp/godot.zip /tmp/templates.tpz
+
+      - name: Add Godot to PATH and report version
+        run: |
+          echo "$HOME/godot-bin" >> "$GITHUB_PATH"
+          "$HOME/godot-bin/godot" --version
+          ls -l "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}"
+
+      - name: Import Godot project
+        working-directory: game
+        run: |
+          # A cold import is flaky and can exit nonzero while still doing useful
+          # work, so run it twice and tolerate failure. The export step below is
+          # the real gate.
+          godot --headless --import . || true
+          godot --headless --import . || true
+
+      - name: Export web build
+        working-directory: game
+        run: |
+          set -euo pipefail
+          mkdir -p ../web/public/game
+          # Exit code is the only valid success signal here. --export-release
+          # prints ERROR: lines for non-fatal conditions, so do NOT grep for
+          # "ERROR" — `set -e` plus the size assertions below are the contract.
+          godot --headless --export-release "Web" ../web/public/game/index.html
+
+      - name: Assert export produced a usable build
+        run: |
+          set -euo pipefail
+          test -s web/public/game/index.wasm
+          test -s web/public/game/index.pck
+          test -s web/public/game/index.js
+          test -s web/public/game/index.html
+          ls -l web/public/game
+          echo "wasm bytes: $(stat -c%s web/public/game/index.wasm)"
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install site dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Build site
+        working-directory: web
+        # base_path has no trailing slash; Vite requires one, hence the "/".
+        run: npm run build -- --base="${{ steps.pages.outputs.base_path }}/"
+
+      - name: Verify the export survived the bundle intact
+        run: |
+          set -euo pipefail
+          # public/ is copied verbatim: Godot derives index.wasm / index.pck from
+          # its own basename at runtime, so any hashing or renaming breaks it.
+          diff -r web/public/game web/dist/game
+          echo "dist/game is byte-identical to the export"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: web/dist
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

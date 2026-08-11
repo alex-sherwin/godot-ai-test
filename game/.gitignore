@@ -1,0 +1,7 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# Godot writes the resolved export path back into this file after an editor
+# export; keep it empty in git so CI stays authoritative.
+export_presets.cfg.bak

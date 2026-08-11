@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Disc Golf Flight Lab</title>
+    <meta
+      name="description"
+      content="An interactive disc golf flight simulator. Tune speed, glide, turn and fade, then watch the aerodynamic model fly the disc down the fairway."
+    />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <p class="eyebrow">Godot 4.7 &middot; WebGL2 &middot; deployed from CI</p>
+        <h1>Disc Golf Flight Lab</h1>
+        <p class="lede">
+          A disc in flight is a spinning, bevelled wing. It generates lift, it
+          resists the air, and because it is a gyroscope, the torque from that
+          airflow does not tip it over &mdash; it turns it sideways. Flight Lab
+          simulates that behaviour directly: set a disc's speed, glide, turn and
+          fade, pick a release angle, height and spin, and watch the resulting
+          trajectory carve its way down the fairway.
+        </p>
+
+        <div class="cta">
+          <!-- href is rewritten by Vite's %BASE_URL% so this works under
+               /godot-ai-test/ on Pages and at / during `vite dev`. main.js
+               re-derives it from import.meta.env.BASE_URL as a belt-and-braces
+               check. Full-page navigation, not an iframe: Godot's canvas resize
+               policy assumes it owns the window, and an iframe would add focus,
+               keyboard and pointer-lock friction for no benefit. -->
+          <a class="btn btn-primary" id="launch" href="%BASE_URL%game/index.html">
+            <span class="btn-label">Launch simulator</span>
+            <span class="btn-sub">~40&nbsp;MB first load</span>
+          </a>
+          <a
+            class="btn btn-ghost"
+            href="https://github.com/alex-sherwin/godot-ai-test"
+            rel="noopener"
+            >View source</a
+          >
+        </div>
+
+        <p class="notice" id="notice" hidden></p>
+      </header>
+
+      <main>
+        <section class="panel" aria-labelledby="how-title">
+          <h2 id="how-title">How the flight model works</h2>
+          <p class="panel-intro">
+            Each throw is integrated forward in small time steps. At every step
+            the simulation asks the same four questions:
+          </p>
+          <ol class="steps">
+            <li>
+              <h3>Orientation vs. airflow</h3>
+              <p>
+                The disc's angle of attack is the angle between where it is
+                pointing and where it is actually going &mdash; which drift apart
+                as the throw progresses. This angle drives everything else.
+              </p>
+            </li>
+            <li>
+              <h3>Lift and drag</h3>
+              <p>
+                Angle of attack maps to lift and drag coefficients, scaled by air
+                density and the square of airspeed. Lift is what makes a
+                well&#8209;thrown disc float far past where a ballistic arc would
+                have dropped it.
+              </p>
+            </li>
+            <li>
+              <h3>Pitching moment and precession</h3>
+              <p>
+                The aerodynamic centre sits ahead of the centre of mass, so
+                airflow applies a torque. On a spinning disc that torque does not
+                cause a tip &mdash; it causes precession 90&deg; out of phase.
+                This is the real source of turn and fade.
+              </p>
+            </li>
+            <li>
+              <h3>Spin decay</h3>
+              <p>
+                Spin bleeds off over the flight. As it does, the disc resists
+                precession less, which is why fade arrives late and hard rather
+                than evenly across the throw.
+              </p>
+            </li>
+          </ol>
+        </section>
+
+        <section class="panel" aria-labelledby="controls-title">
+          <h2 id="controls-title">Controls</h2>
+          <!-- SEAM: gameplay agent owns this list. Keep it in sync with the
+               real in-Godot input map once the sim is interactive. -->
+          <dl class="controls">
+            <div><dt>Mouse drag</dt><dd>Orbit the camera</dd></div>
+            <div><dt>Scroll</dt><dd>Zoom</dd></div>
+            <div><dt>Space</dt><dd>Throw / replay</dd></div>
+            <div><dt>R</dt><dd>Reset to the tee</dd></div>
+          </dl>
+          <p class="footnote">
+            The build currently on this page is a placeholder scene that proves
+            the export and deploy pipeline. The flight model and its controls are
+            under active construction.
+          </p>
+        </section>
+      </main>
+
+      <footer>
+        <p>
+          Built with Godot 4.7.1 (GL&nbsp;Compatibility / WebGL2), exported
+          single&#8209;threaded, bundled by Vite and deployed to GitHub Pages by
+          GitHub Actions.
+        </p>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
