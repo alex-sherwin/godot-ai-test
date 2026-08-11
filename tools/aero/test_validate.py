@@ -8,6 +8,7 @@ tuning is worse than one that misses it honestly.
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -275,20 +276,75 @@ def test_matches_the_published_reference_implementation():
         paper["shotshaper_published"]["lateral_m"], abs=0.5)
 
 
-def test_the_naive_gyroscopic_law_would_be_visibly_wrong():
-    """Guard against the v1 precession law creeping back in. Dividing by I_zz
-    instead of (I_zz - I_xy) halves the precession, which halves the fade: the
-    flat drive nearly doubles in flight time and lands 26 m further right."""
+# ---------------------------------------------------------------------------
+# PRECESSION_GAIN — an empirical constant, guarded as one
+# ---------------------------------------------------------------------------
+def test_precession_gain_is_declared_once_and_applied_once():
+    """Rule 1 from CONTRACT §4 v3: one named constant, one application site,
+    never folded into the algebra."""
+    src = (Path(V.__file__)).read_text()
+    body = src.split('"""', 2)[-1]          # skip the module docstring
+    assert body.count("PRECESSION_GAIN = 2.0") == 1
+    # The gain reaches the dynamics only through _precess().
+    assert body.count("-gain * m_perp") == 1
+    # The constant is only ever a default argument or a reported value — never
+    # part of an arithmetic expression outside _precess().
+    for folded in ("PRECESSION_GAIN *", "* PRECESSION_GAIN", "/ PRECESSION_GAIN",
+                   "PRECESSION_GAIN /"):
+        assert folded not in body, folded
+    # No stray inertia fudge: the superseded (I_zz - I_xy) form must be gone.
+    assert "I_zz - disc.I_xy" not in body
+    assert "i_prec" not in body
+
+
+def test_precession_gain_is_global_not_per_disc():
+    """Rule 3: never tuned per disc or per throw.
+
+    Nothing in the shipped data may carry a gain, and every disc must move
+    identically whether the gain arrives from the module constant or is passed
+    explicitly.
+    """
+    data = Path(V.__file__).parents[2] / "game" / "data"
+    for path in [data / "discs.json", *sorted((data / "aero").glob("*.json"))]:
+        text = path.read_text().lower()
+        assert "precession_gain" not in text, path.name
+        assert "precessiongain" not in text, path.name
+
+    p = _throw(speed_mps=24.0, spin_rps=21.0, launch_angle_rad=math.radians(11.0),
+               hyzer_angle_rad=math.radians(10.0))
+    for disc_id in ("aviar", "buzzz", "teebird", "firebird", "destroyer"):
+        d = V.load_disc(disc_id)
+        assert V.simulate(d, p).distance_m == pytest.approx(
+            V.simulate(d, p, precession_gain=V.PRECESSION_GAIN).distance_m, rel=1e-12)
+
+
+def test_pure_kinematics_is_gain_one_and_visibly_insufficient():
+    """Rule 2 evidence, kept in the suite so the constant cannot become folklore.
+
+    Gain 1.0 is the exact gyroscopic kinematics. It is not a near miss: the
+    driver hangs far too long, the fade all but disappears, and the understable
+    disc never turns over.
+    """
+    ev = V.precession_gain_evidence()
+    kin, shipped = ev["gain_1"], ev[f"gain_{V.PRECESSION_GAIN:g}"]
+
+    assert kin["precession_gain"] == 1.0
+    # Flat drive: nearly double the hang time.
+    assert kin["flat_drive_time_s"] > 1.7 * shipped["flat_drive_time_s"]
+    # Fade essentially gone: the disc turns out and never comes back.
+    assert kin["canonical_drive_fade_back_m"] > 4.0 * shipped["canonical_drive_fade_back_m"]
+    # Understable disc fails CONTRACT §5 outright.
+    assert kin["understable_max_tilt_deg"] < 30.0
+    assert shipped["understable_max_tilt_deg"] > 45.0
+
+
+def test_kinematic_only_run_misses_the_reference_implementation():
     cross = V.shotshaper_cross_check()
     flat = cross["flat_27"]
-    assert flat["ours_naive_gyroscopic"]["flight_time_s"] > 1.7 * flat["ours"]["flight_time_s"]
-    assert flat["ours_naive_gyroscopic"]["lateral_m"] > flat["ours"]["lateral_m"] + 20.0
-
-
-def test_precession_uses_i_zz_minus_i_xy(destroyer):
-    """The correction factor for a flat disc is close to 2."""
-    ratio = destroyer.I_zz / (destroyer.I_zz - destroyer.I_xy)
-    assert 1.9 < ratio < 2.1
+    assert flat["ours_kinematic_only"]["flight_time_s"] > 1.7 * flat["ours"]["flight_time_s"]
+    assert flat["ours_kinematic_only"]["lateral_m"] > flat["ours"]["lateral_m"] + 20.0
+    for row in cross.values():
+        assert row["precession_gain"] == V.PRECESSION_GAIN
 
 
 # ---------------------------------------------------------------------------

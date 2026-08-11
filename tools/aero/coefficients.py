@@ -176,7 +176,7 @@ DAMPING_PROVENANCE = {
         "CONTRACT §5 distance drive, and an initial decay rate of 2.8%/s at "
         "27 m/s / 157 rad/s -- which independently matches a turbulent "
         "skin-friction estimate over both disc faces (C_f ~ 0.005 gives "
-        "2.4%/s). Re-checked after the §4 v2 precession correction shortened "
+        "2.4%/s). Re-checked after the §4 precession correction shortened "
         "flight times; kept unchanged, because the first-principles estimate "
         "constrains it better than the round 15% figure does."
     ),

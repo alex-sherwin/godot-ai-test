@@ -30,50 +30,63 @@ Sign conventions (CONTRACT §1) — get these wrong and turn/fade invert
 * World frame Y-up, ``-Z`` downrange, ``+X`` to the thrower's right.
 * ``spin > 0`` is RHBH: clockwise seen from above, so the **angular velocity
   vector points down**, along ``-normal``.  Hence ``L = -I_zz * spin * n``.
-* Precession, CONTRACT §4 **v2**:
+* Precession, CONTRACT §4 **v3**:
 
-      dn/dt = -M_perp / ((I_zz - I_xy) * spin)
+      dn/dt = -PRECESSION_GAIN * M_perp / (I_zz * spin)
 
-  Note the denominator is ``I_zz - I_xy``, not ``I_zz``.  Since ``I_xy ~=
-  I_zz/2`` for a flat disc this is twice the naive gyroscopic rate, and the
-  factor matters enormously: halved precession means halved fade, which makes
-  the disc glide instead of dumping.  The v1 contract mandated the naive form
-  and this module implemented it; measured here, it produced 9.4 s flight times
-  for a drive that should fly ~6 s.  ``shotshaper``'s
-  ``-M/(omega*(I_xy - I_z))`` is the same expression and is correct.
-  The axial equation is unaffected: spin-down still divides by ``I_zz``.
+  Two separate things, deliberately kept separate in the code.
 
-  One caveat, recorded so it is not lost.  The empirical case for this form is
-  very strong: it reproduces the field-validated reference implementation to
-  0.4% on their own example throw, where the naive form misses by 26 m of
-  lateral.  The *kinematic* case is less settled.  Redone in the non-spinning
-  (Resal) frame, where the transverse rate components really are constant during
-  steady precession, the ``I_xy`` terms cancel and the naive form comes back;
-  the same result follows from the spinning-frame equations once you use
-  ``omega_2_dot = -n * omega_1`` rather than zero, which is what steady
-  precession actually implies in that frame.  So the factor of two may be doing
-  *calibration* work — standing in for the missing spin-induced roll moment, or
-  for a CFD pitching moment that is systematically high — rather than fixing a
-  kinematic error.  Practically this changes nothing today.  It matters if
-  someone later measures ``CRr`` for a real golf disc: this factor should be
-  re-examined at the same time, not assumed independent of it.
+  **The kinematics are the naive gyroscopic form** ``M/(I_zz*omega)``, and that
+  form is exact.  It falls out of the Resal (non-spinning) frame directly:
+  there ``dL/dt|frame = 0`` in steady precession and ``Omega x L`` carries no
+  ``I_xy`` contribution, because the frame itself does not spin.  It also falls
+  out of the body-fixed Euler equations, *provided* the steady-precession
+  condition is written correctly.  The trap is setting ``omega_2_dot = 0`` in
+  body axes: the disc spins at ~150 rad/s, so a transverse angular-velocity
+  vector that is steady in space rotates backwards at the spin rate relative to
+  those axes, giving ``omega_2_dot = -omega_3 * omega_1``, not zero.  With that
+  substituted::
+
+      I_xy*(-w3*w1) + (I_xy - I_zz)*w3*w1 = M_2
+      w3*w1*[-I_xy + I_xy - I_zz]         = M_2
+      -I_zz*w3*w1                         = M_2   ->   w1 = -M_2/(I_zz*w3)
+
+  The ``I_xy`` terms cancel exactly.  Two independent derivations agree, so
+  ``2M/(I_zz*omega)`` is **not** a kinematic result and must not be presented as
+  one.
+
+  **The factor of ~2 is an empirical calibration constant.**  It stands in for
+  spin-dependent aerodynamics the source data cannot contain -- see
+  ``PRECESSION_GAIN`` and the section below.  ``precession_gain_evidence()``
+  measures the difference; ``validation/precession_gain_evidence.json`` ships it.
+
+  The axial equation is unaffected either way: spin-down divides by ``I_zz``
+  with no gain.
+
 * Spin-down carries the full ``0.5*rho*V^2*A*d`` scaling, which Hummel's
   published MATLAB omits.  See ``coefficients.DAMPING_PROVENANCE``.
 * ``hyzer_angle_rad``: positive banks the disc **left** for a RHBH throw, so a
   hyzer release finishes left.  CONTRACT §4 v2 confirms this; v1's parenthetical
   said the opposite and was wrong.
 
-What is *not* modelled, and why it is the leading remaining gap
---------------------------------------------------------------
-There is no spin-induced roll moment (``CRr``).  The Giljarhus CFD is
-steady-state RANS on a **non-rotating** disc, so the dataset structurally cannot
-contain one — this is an omission in the source data, not a simplification we
-chose.  Transplanting Hummel's Ultimate-disc ``CRr = 0.00171`` was tried and
-rejected: under her ``sqrt(d/g)`` non-dimensionalisation it produces a moment
-**2.25x larger than the pitching moment** at launch, and neither sign gives a
-survivable flight (the canonical drive collapses from 111.7 m to 41.8 m with
-``+CRr`` and to 20.5 m with ``-CRr``).  The number is not transferable to this
-frame.  Left out, and recorded rather than fudged.
+What ``PRECESSION_GAIN`` is standing in for
+------------------------------------------
+There is no spin-induced roll moment (``CRr``) in this model.  The Giljarhus CFD
+is steady-state RANS on a **non-rotating** disc, so the dataset structurally
+cannot contain *any* spin-dependent moment — an omission in the source data, not
+a simplification we chose.  ``CRr`` in particular is precisely a moment that
+would drive bank angle, which is what the gain is compensating for.
+
+Transplanting Hummel's Ultimate-disc ``CRr = 0.00171`` was tried and rejected:
+under her ``sqrt(d/g)`` non-dimensionalisation it produces a moment **2.25x
+larger than the pitching moment** at launch, and neither sign gives a survivable
+flight (the canonical drive collapses from 111.4 m to 41.8 m with ``+CRr`` and
+to 20.5 m with ``-CRr``).  The number is not transferable to this frame.  Left
+out, and recorded rather than fudged.
+
+If ``CRr`` is ever measured on a *rotating* golf disc, it and
+``PRECESSION_GAIN`` must be revisited **together**: adding one without reducing
+the other would double-count the same physics.
 """
 
 from __future__ import annotations
@@ -94,6 +107,23 @@ DT = 1.0 / 240.0
 MAX_TIME_S = 30.0
 # Below this the gyroscopic reduction is meaningless (precession -> infinity).
 MIN_ABS_SPIN_RAD_S = 5.0
+
+# EMPIRICAL, not derived. Kinematically this gain is 1.0: steady precession is
+# exactly M/(I_zz*spin) (see the derivation in the module docstring and
+# CONTRACT §4 v3). 2.0 compensates for spin-dependent aerodynamics absent from
+# the source data: the Giljarhus CFD is steady-state RANS on a NON-ROTATING
+# disc, so it structurally cannot contain CRr, the spin-induced rolling moment
+# -- exactly a moment that would drive bank angle.
+#   With 1.0: the driver flies 116 m in 9.4 s (a real drive of that distance
+#             takes ~6 s), fade is roughly half of reality, and an understable
+#             disc reaches only 23 deg of bank instead of turning over.
+#   With 2.0: all four CONTRACT §5 targets are met and shotshaper's reference
+#             throw is reproduced to within 0.6% on distance.
+# If CRr is ever measured on a ROTATING golf disc, this and CRr must be
+# revisited TOGETHER -- adding CRr without reducing this would double-count.
+# One global constant. Never tuned per disc or per throw: if a disc needs its
+# own value, its coefficient data is wrong, not the kinematics.
+PRECESSION_GAIN = 2.0
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +275,20 @@ def _aero_state(disc: DiscDefinition, y: np.ndarray, env: Environment):
     return pos, vel, n, spin, vhat, speed, alpha, cl, cd, cm, q, qa, lift_dir, force
 
 
-def _derivative(disc: DiscDefinition, y: np.ndarray, env: Environment) -> np.ndarray:
+def _precess(m_vec: np.ndarray, n: np.ndarray, i_zz: float, spin: float,
+             gain: float) -> np.ndarray:
+    """``dn/dt`` produced by an applied moment.
+
+    The **only** place ``PRECESSION_GAIN`` is applied. Everything outside this
+    function is pure kinematics, so the empirical constant stays visible and
+    cannot drift into the algebra.
+    """
+    m_perp = m_vec - float(np.dot(m_vec, n)) * n
+    return -gain * m_perp / (i_zz * spin)
+
+
+def _derivative(disc: DiscDefinition, y: np.ndarray, env: Environment,
+                gain: float = PRECESSION_GAIN) -> np.ndarray:
     st = _aero_state(disc, y, env)
     dy = np.zeros(10)
     if st is None:
@@ -262,9 +305,6 @@ def _derivative(disc: DiscDefinition, y: np.ndarray, env: Environment) -> np.nda
     nondim = d / (2.0 * speed)
 
     spin_eff = spin if abs(spin) >= MIN_ABS_SPIN_RAD_S else math.copysign(MIN_ABS_SPIN_RAD_S, spin or 1.0)
-    # CONTRACT §4 v2: the precession denominator is (I_zz - I_xy), not I_zz.
-    # Spin-down still divides by I_zz, which is the axial equation and unaffected.
-    i_prec = disc.I_zz - disc.I_xy
 
     # Pitch axis: rotating the normal about +j increases alpha (nose up), so a
     # positive CM is a nose-up moment, as CONTRACT §5 requires.
@@ -276,7 +316,7 @@ def _derivative(disc: DiscDefinition, y: np.ndarray, env: Environment) -> np.nda
     # rate a function of the moment, so the damping feedback is evaluated on the
     # undamped rate. The correction is ~0.1% of the static moment.
     m_static = qad * cm * j
-    dn_static = -(m_static - float(np.dot(m_static, n)) * n) / (i_prec * spin_eff)
+    dn_static = _precess(m_static, n, disc.I_zz, spin_eff, gain)
     omega = np.cross(n, dn_static)
 
     c_mq = float(disc.table.damping["c_mq"])
@@ -287,17 +327,18 @@ def _derivative(disc: DiscDefinition, y: np.ndarray, env: Environment) -> np.nda
               + qad * c_mq * (float(np.dot(omega, j)) * nondim) * j)
     m_total = m_static + m_damp
 
-    dy[6:9] = -(m_total - float(np.dot(m_total, n)) * n) / (i_prec * spin_eff)
+    dy[6:9] = _precess(m_total, n, disc.I_zz, spin_eff, gain)
     # Spin-down, with the A*d scaling Hummel's published code drops.
     dy[9] = qad * c_nr * (spin * nondim) / disc.I_zz
     return dy
 
 
-def _rk4(disc: DiscDefinition, y: np.ndarray, env: Environment, dt: float) -> np.ndarray:
-    k1 = _derivative(disc, y, env)
-    k2 = _derivative(disc, y + 0.5 * dt * k1, env)
-    k3 = _derivative(disc, y + 0.5 * dt * k2, env)
-    k4 = _derivative(disc, y + dt * k3, env)
+def _rk4(disc: DiscDefinition, y: np.ndarray, env: Environment, dt: float,
+         gain: float = PRECESSION_GAIN) -> np.ndarray:
+    k1 = _derivative(disc, y, env, gain)
+    k2 = _derivative(disc, y + 0.5 * dt * k1, env, gain)
+    k3 = _derivative(disc, y + 0.5 * dt * k2, env, gain)
+    k4 = _derivative(disc, y + dt * k3, env, gain)
     out = y + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
     out[6:9] = _unit(out[6:9])
     return out
@@ -336,7 +377,14 @@ def simulate(
     env: Environment | None = None,
     dt: float = DT,
     sample_every: int = 12,
+    precession_gain: float = PRECESSION_GAIN,
 ) -> FlightResult:
+    """Integrate a throw to landing.
+
+    ``precession_gain`` exists only so the pure-kinematics case (1.0) can be
+    measured for comparison. Production callers must leave it alone -- see the
+    constant's comment.
+    """
     env = env or Environment()
 
     # velocity: heading rotates -Z toward +X, then elevate.
@@ -382,12 +430,12 @@ def simulate(
 
     record(t, y)
     while t < MAX_TIME_S:
-        nxt = _rk4(disc, y, env, dt)
+        nxt = _rk4(disc, y, env, dt, precession_gain)
         if nxt[1] <= 0.0 < y[1]:
             # Interpolate the ground crossing inside the final substep: at 25 m/s
             # a whole 1/240 step is 10 cm of landing error.
             frac = y[1] / (y[1] - nxt[1])
-            nxt = _rk4(disc, y, env, dt * max(frac, 1e-6))
+            nxt = _rk4(disc, y, env, dt * max(frac, 1e-6), precession_gain)
             t += dt * frac
             y = nxt
             landed = True
@@ -645,26 +693,25 @@ SHOTSHAPER_REFERENCE = {
 def shotshaper_cross_check() -> dict:
     """Run our integrator against ``shotshaper``'s on the same disc and throws.
 
-    Since CONTRACT §4 v2 we use the same precession law they do, so ``ours``
-    should track them closely — and does, to within about 4% on distance and 9%
-    on flight time. The residual is our damping and spin-down terms, which their
-    model does not have at all.
+    ``ours`` uses the shipped ``PRECESSION_GAIN``; ``ours_kinematic_only``
+    re-runs with the gain set to 1.0, i.e. pure gyroscopic kinematics with no
+    empirical correction.
 
-    ``ours_naive_gyroscopic`` re-runs with ``I_zz`` in place of ``I_zz - I_xy``,
-    i.e. the law CONTRACT v1 mandated and this module previously implemented. It
-    is kept so the size of that correction stays visible: it roughly doubles the
-    flight time of a flat drive and pushes the landing 35 m further right.
+    The gap between those two columns **is** the evidence for the constant, so
+    it is published rather than described: with 1.0 the flat drive nearly
+    doubles in flight time and lands 26 m further right, and neither figure is
+    reachable by any release angle. Keeping it in the fixtures means the
+    constant can never quietly become folklore.
     """
     disc = load_disc("destroyer")
-    naive = DiscDefinition(disc.id, disc.mass_kg, disc.diameter_m, disc.area_m2,
-                           disc.I_zz + disc.I_xy, disc.I_xy, disc.table)
     out = {}
     for name, spec in SHOTSHAPER_REFERENCE.items():
         ours = simulate(disc, ThrowParams(**spec["throw"]))
-        nv = simulate(naive, ThrowParams(**spec["throw"]))
+        kin = simulate(disc, ThrowParams(**spec["throw"]), precession_gain=1.0)
         out[name] = {
             "note": spec["note"],
             "throw": spec["throw"],
+            "precession_gain": PRECESSION_GAIN,
             "shotshaper_published": spec["shotshaper"],
             "ours": {
                 "distance_m": round(ours.distance_m, 2),
@@ -672,14 +719,54 @@ def shotshaper_cross_check() -> dict:
                 "max_height_m": round(ours.max_height_m, 2),
                 "lateral_m": round(ours.lateral_m, 2),
             },
-            "ours_naive_gyroscopic": {
-                "distance_m": round(nv.distance_m, 2),
-                "flight_time_s": round(nv.flight_time_s, 2),
-                "max_height_m": round(nv.max_height_m, 2),
-                "lateral_m": round(nv.lateral_m, 2),
+            "ours_kinematic_only": {
+                "_gain": 1.0,
+                "distance_m": round(kin.distance_m, 2),
+                "flight_time_s": round(kin.flight_time_s, 2),
+                "max_height_m": round(kin.max_height_m, 2),
+                "lateral_m": round(kin.lateral_m, 2),
             },
         }
     return out
+
+
+def precession_gain_evidence() -> dict:
+    """The §5 behavioural targets, measured at gain 1.0 and at the shipped gain.
+
+    This is the whole justification for ``PRECESSION_GAIN`` in one table. If a
+    future change to the coefficient data ever makes 1.0 sufficient, this is
+    where it will show up.
+    """
+    rows = {}
+    for gain in (1.0, PRECESSION_GAIN):
+        drive = simulate(load_disc("destroyer"), ThrowParams(
+            speed_mps=27.0, spin_rps=25.0, launch_angle_rad=math.radians(13.0),
+            hyzer_angle_rad=math.radians(22.0), launch_height_m=1.4),
+            precession_gain=gain)
+        flat = simulate(load_disc("destroyer"), ThrowParams(
+            speed_mps=27.0, spin_rps=25.0, launch_angle_rad=math.radians(12.0),
+            launch_height_m=1.4), precession_gain=gain)
+        rr = simulate(load_disc("roadrunner"), ThrowParams(
+            speed_mps=27.0, spin_rps=24.0, launch_angle_rad=math.radians(10.0),
+            launch_height_m=1.4), precession_gain=gain)
+        tilt = max(math.degrees(math.atan2(s["normal"][0], s["normal"][1]))
+                   for s in rr.samples)
+        rows[f"gain_{gain:g}"] = {
+            "precession_gain": gain,
+            "canonical_drive_distance_m": round(drive.distance_m, 1),
+            "canonical_drive_time_s": round(drive.flight_time_s, 2),
+            "canonical_drive_fade_back_m": round(drive.max_right_m - drive.lateral_m, 1),
+            "flat_drive_distance_m": round(flat.distance_m, 1),
+            "flat_drive_time_s": round(flat.flight_time_s, 2),
+            "understable_max_tilt_deg": round(tilt, 1),
+        }
+    rows["comment"] = (
+        "Gain 1.0 is the exact kinematics. It is not a near miss: the driver "
+        "hangs ~2x too long and the understable disc never turns over. The gap "
+        "is the missing spin-dependent aerodynamics (CRr), which the "
+        "non-rotating CFD source cannot contain."
+    )
+    return rows
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -702,6 +789,7 @@ def main(argv: list[str] | None = None) -> int:
     putt = putter_speed_sweep()
     cross = shotshaper_cross_check()
     hyzer = hyzer_sweep()
+    gain_evidence = precession_gain_evidence()
 
     print(f"{'throw':26s} {'dist':>7s} {'lat':>7s} {'maxR':>7s} {'maxH':>6s} "
           f"{'time':>5s} {'spin-':>6s} {'bank':>7s}")
@@ -721,11 +809,15 @@ def main(argv: list[str] | None = None) -> int:
     for row in hyzer:
         if row["meets_contract_5"]:
             print("  " + json.dumps(row))
+    print(f"\nprecession gain evidence (shipped gain = {PRECESSION_GAIN}):")
+    for key, row in gain_evidence.items():
+        if key != "comment":
+            print("  " + json.dumps(row))
     print("\nshotshaper cross-check:")
     for name, row in cross.items():
         print(f"  {name}: shotshaper={row['shotshaper_published']}")
-        print(f"    ours                 ={row['ours']}")
-        print(f"    ours(naive gyroscopic)={row['ours_naive_gyroscopic']}")
+        print(f"    ours                  ={row['ours']}")
+        print(f"    ours(kinematics only) ={row['ours_kinematic_only']}")
 
     if args.dump:
         VALIDATION_DIR.mkdir(parents=True, exist_ok=True)
@@ -735,6 +827,8 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps({"disc": "destroyer", "speed_mps": 27.0,
                         "launch_angle_deg": 12.0, "rows": spin,
                         "putter_speed_sweep": putt}, indent=1) + "\n")
+        (VALIDATION_DIR / "precession_gain_evidence.json").write_text(
+            json.dumps(gain_evidence, indent=1) + "\n")
         (VALIDATION_DIR / "hyzer_sweep.json").write_text(
             json.dumps({"disc": "destroyer", "speed_mps": 27.0, "spin_rps": 25.0,
                         "rows": hyzer}, indent=1) + "\n")
@@ -754,7 +848,7 @@ def main(argv: list[str] | None = None) -> int:
             "positive-is-left-bank for a RHBH throw, following CONTRACT §5\n"
             "(a right bank turns right); the parenthetical in §4 says the\n"
             "opposite and is believed to be an editorial slip.\n")
-        print(f"\nwrote {len(results) + 4} files to {VALIDATION_DIR}")
+        print(f"\nwrote {len(results) + 5} files to {VALIDATION_DIR}")
     return 0
 
 

@@ -252,9 +252,10 @@ Numbers from `python -m tools.aero.validate` (sea level, 1.225 kg/m³, no wind,
 RK4 at 1/240 s, launch height 1.4 m). Full trajectories are dumped to
 `tools/aero/validation/`.
 
-> **Regenerated for CONTRACT §4 v2.** The precession law was corrected from
-> `−M/(I_zz·ω)` to `−M/((I_zz − I_xy)·ω)` — a factor of ~2 for a flat disc.
-> Every number below moved. Fixtures generated against the v1 law are stale.
+> **Regenerated for CONTRACT §4 v3**, which separates the precession
+> *kinematics* from the empirical gain applied on top of them. See
+> "Precession: what is derived and what is not" below. Fixtures generated
+> against §4 v1 or v2 are stale.
 
 | throw | dist | lateral | max right | peak | time | spin lost |
 |---|---|---|---|---|---|---|
@@ -315,27 +316,68 @@ the authors of the CFD dataset, so the *whole* integrator is checked against
 theirs rather than everything-but-one-constant. On their own example throw the
 agreement is within 0.4%:
 
-| throw | shotshaper | ours (§4 v2) | ours with the v1 naive law |
+| throw | shotshaper | ours (gain 2.0) | ours, kinematics only (gain 1.0) |
 |---|---|---|---|
-| their example (24.2 m/s, 15.5°, 14.7° roll) | 82.1 m, 6.87 s, 11.5 m peak, -4.2 lat | **81.8 m, 6.81 s, 11.5 m, -4.1** | 76.6 m, 6.90 s, 12.1 m, -26.4 |
-| flat, 27 m/s, 25 rev/s | 75.0 m, 4.13 s, 8.9 m, +24.9 | **72.8 m, 3.80 s, 8.2 m, +20.5** | 108.9 m, 7.31 s, 10.4 m, +46.6 |
+| their example (24.2 m/s, 15.5°, 14.7° roll) | 82.1 m, 6.87 s, 11.5 m peak, -4.2 lat | **81.7 m, 6.80 s, 11.6 m, -4.3** | 76.5 m, 6.88 s, 12.1 m, -26.3 |
+| flat, 27 m/s, 25 rev/s | 75.0 m, 4.13 s, 8.9 m, +24.9 | **72.9 m, 3.81 s, 8.2 m, +20.6** | 108.7 m, 7.28 s, 10.4 m, +46.4 |
 
 The residual on the flat throw is our damping and spin-down terms, which their
-model does not have at all. The third column is kept, and asserted by a test, so
-the size of the v1 error stays visible: it nearly doubles the flight time of a
-flat drive and lands it 26 m further right.
+model does not have at all.
 
-One caveat on *why* the v2 form is right, recorded so it is not lost. The
-empirical case is overwhelming — 0.4% agreement against a field-validated
-implementation, versus 26 m of lateral error for the naive form. The kinematic
-case is less settled: redone in the non-spinning (Resal) frame, where the
-transverse rate components genuinely are constant during steady precession, the
-`I_xy` terms cancel and the naive form returns. So the factor of two may be
-doing *calibration* work — standing in for the missing `CRr` below, or for a CFD
-pitching moment that is systematically high — rather than correcting a kinematic
-error. Nothing changes today. It matters if anyone measures `CRr` for a real
-golf disc: this factor should be re-examined at the same time rather than
-assumed independent of it.
+The third column is *not* an alternative law. It is the pure kinematics, with
+the empirical gain removed — see the next section.
+
+### Precession: what is derived and what is not
+
+CONTRACT §4 v3, and the code, keep these two apart:
+
+```
+dn/dt = -PRECESSION_GAIN * M_perp / (I_zz * spin)
+PRECESSION_GAIN = 2.0     # empirical. The kinematics are 1.0.
+```
+
+**The kinematics are the naive gyroscopic form `M/(I_zz·ω)`, and that form is
+exact.** It falls out of the Resal (non-spinning) frame directly: there
+`dL/dt|frame = 0` in steady precession and `Ω × L` carries no `I_xy`
+contribution, because the frame itself does not spin. It also falls out of the
+body-fixed Euler equations once the steady-precession condition is written
+correctly. The trap is setting `ω̇₂ = 0` in body axes — the disc spins at
+~150 rad/s, so a transverse angular-velocity vector that is steady *in space*
+rotates backwards at the spin rate relative to those axes, giving
+`ω̇₂ = −ω₃·ω₁`, not zero. Substituting that:
+
+```
+I_xy·(−ω₃·ω₁) + (I_xy − I_zz)·ω₃·ω₁ = M₂
+ω₃·ω₁·[−I_xy + I_xy − I_zz]         = M₂
+−I_zz·ω₃·ω₁                          = M₂    →    ω₁ = −M₂/(I_zz·ω₃)
+```
+
+The `I_xy` terms cancel exactly. Two independent derivations agree, so
+`2M/(I_zz·ω)` is **not** a kinematic result and this project does not present it
+as one.
+
+**The factor of 2 is an empirical calibration constant**, and the honest reading
+is that it is standing in for physics the source data cannot contain — not that
+the kinematics needed fixing. It is declared once, applied in exactly one
+function, and never varies by disc or by throw; tests enforce all three. If a
+disc ever seemed to need its own value, that would mean its coefficient data was
+wrong, not its kinematics.
+
+The evidence for the value, measured rather than asserted
+(`tools/aero/validation/precession_gain_evidence.json`):
+
+| | gain 1.0 (pure kinematics) | gain 2.0 (shipped) |
+|---|---|---|
+| canonical drive distance | 102.1 m | 111.4 m |
+| canonical drive flight time | 7.93 s | 8.29 s |
+| canonical drive fade-back | 40.7 m — turns out and never returns | 8.3 m |
+| flat drive distance / time | 108.7 m / 7.28 s | 72.9 m / 3.81 s |
+| understable disc peak tilt | 23.4° — never turns over | 69.3° |
+
+Gain 1.0 is not a near miss. A flat drive hangs nearly twice as long as it
+should, the fade all but disappears, and the CONTRACT §5 understable-disc target
+fails outright at any release angle. A real physical effect of roughly this
+magnitude is missing from the coefficients, and the next section says which one.
 
 ### The one coefficient the source data cannot contain
 
@@ -358,9 +400,13 @@ term in the model, sourced from a different disc. Neither sign survives:
 | -0.0005 | 42.9 m | +0.3 m | 1.85 s |
 
 The number is not transferable to this frame and non-dimensionalisation. Left
-out and recorded, rather than scaled down until it looked harmless. Measuring
-`CRr` for an actual golf disc — CFD on a *rotating* disc, or a wind-tunnel
-run — remains the highest-value thing anyone could add to this model.
+out and recorded, rather than scaled down until it looked harmless.
+
+Measuring `CRr` for an actual golf disc — CFD on a *rotating* disc, or a
+wind-tunnel run — remains the highest-value thing anyone could add to this
+model. When someone does, **`CRr` and `PRECESSION_GAIN` must be revisited
+together**: they are two descriptions of the same missing physics, and adding
+one without reducing the other would double-count it.
 
 ## Citations
 

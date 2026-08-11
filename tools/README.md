@@ -9,7 +9,7 @@ pip install -r tools/requirements.txt
 python -m tools.aero.fetch_reference_data     # refresh the cached reference data
 python -m tools.aero.bake                     # -> game/data/aero/*.json + discs.json
 python -m tools.aero.validate --dump          # -> tools/aero/validation/*.json
-python -m pytest tools/aero                   # 112 tests
+python -m pytest tools/aero                   # 114 tests
 ```
 
 Dependencies are numpy, scipy and pytest, pinned in `tools/requirements.txt`.
@@ -67,18 +67,25 @@ oracle Track B's GDScript is diffed against. `--dump` writes named throws with
 per-sample position, velocity, disc normal, quaternion, spin, α and the three
 coefficients actually used, at 20 Hz.
 
-Precession follows CONTRACT §4 **v2**:
+Precession follows CONTRACT §4 **v3**, which keeps the derived part and the
+fitted part visibly separate:
 
 ```
-dn/dt = −M_perp / ((I_zz − I_xy) · spin)
+dn/dt = −PRECESSION_GAIN · M_perp / (I_zz · spin)
+PRECESSION_GAIN = 2.0     # empirical. The kinematics are 1.0.
 ```
 
-Note the denominator. `I_xy ≈ I_zz/2` for a flat disc, so this is twice the
-naive gyroscopic rate `−M/(I_zz·ω)` that v1 of the contract mandated and this
-module originally implemented. The factor matters enormously — halved precession
-means halved fade, and the symptom was 9.4 s flight times for drives that should
-fly ~6 s. `shotshaper` had it right all along. The axial equation is unaffected:
-spin-down still divides by `I_zz`.
+The kinematics are the naive gyroscopic form and it is exact — the `I_xy` terms
+cancel, in the Resal frame and in the body-fixed Euler equations alike, once
+steady precession is written as `ω̇₂ = −ω₃·ω₁` rather than `ω̇₂ = 0`. The factor
+of 2 is **not** a kinematic result; it is a calibration constant standing in for
+spin-dependent aerodynamics the source data cannot contain. It is declared once,
+applied in one function (`_precess`), and never varies by disc or throw — three
+tests enforce that. `game/data/README.md` has the derivation and the measured
+evidence for the value; `validation/precession_gain_evidence.json` ships the
+gain-1.0 comparison so it stays visible.
+
+The axial equation is untouched: spin-down divides by `I_zz` with no gain.
 
 One known upstream bug is avoided: Hummel's published MATLAB drops the `A·d`
 factor from the spin-down moment. We include it — and, because her fitted `CNr`
@@ -87,10 +94,13 @@ ship a number that would give 0.2% spin loss where 10–20% is observed. See
 `game/data/README.md`.
 
 No spin-induced roll moment (`CRr`) is modelled. The CFD is steady-state RANS on
-a *non-rotating* disc, so the source data cannot contain one; transplanting
-Hummel's Ultimate-disc value was tried and rejected because it produces a moment
-2.25× the pitching moment and no survivable flight in either sign. The numbers
-are in `game/data/README.md`.
+a *non-rotating* disc, so the source data cannot contain one — this is what
+`PRECESSION_GAIN` is standing in for. Transplanting Hummel's Ultimate-disc value
+was tried and rejected because it produces a moment 2.25× the pitching moment
+and no survivable flight in either sign. The numbers are in
+`game/data/README.md`. If `CRr` is ever measured on a rotating golf disc, it and
+`PRECESSION_GAIN` must be revisited together or the same physics is
+double-counted.
 
 ## Provenance discipline
 
@@ -152,6 +162,5 @@ a number should be read.
   parenthetical said the opposite and has been corrected. **Track B must match**
   or the validation fixtures will not line up.
 
-* **The fixtures in `tools/aero/validation/` were regenerated for §4 v2.**
-  Anything compared against the v1 dump is stale by roughly a factor of two in
-  fade.
+* **The fixtures in `tools/aero/validation/` were regenerated for §4 v3.**
+  Anything compared against a v1 or v2 dump is stale.
