@@ -13,33 +13,22 @@ extends RefCounted
 ## through the OS filesystem; that is fine because tests only ever run from
 ## source, never from an exported pack.
 ##
-## TOLERANCE, and where it comes from. The two integrators are algebraically
-## identical and both step RK4 at 1/240, so in exact arithmetic they would agree
-## to the last bit. They do not, and the size of the gap was measured rather than
-## guessed:
+## TOLERANCE, and where it comes from. The two implementations are algebraically
+## identical and both step RK4 at 1/240, so in exact arithmetic they agree to the
+## last bit. Measured, they agree to about 1e-6 relative over a 113 m flight —
+## roughly 0.1 mm — which is the level of Godot's single-precision Vector3 math
+## against NumPy's doubles. The tolerances below sit ~100x above that, which is
+## tight enough that a real model divergence cannot hide inside them.
 ##
-##   * NOT truncation. Re-running these throws at 1/480 and 1/960 moves this
-##     implementation's landing point by under 0.1 mm, so truncation at 1/240 is
-##     already negligible — and it is in any case IDENTICAL on both sides, same
-##     method, same step, same ODE.
-##   * NOT sensitive dependence. Perturbing launch spin by 1e-5 relative moves the
-##     landing lateral by 1.4 mm; these flights are well conditioned.
-##   * IT IS arithmetic precision. Godot's Vector3 and Quaternion are SINGLE
-##     precision (`real_t` is float32 in a stock build) while NumPy is double, so
-##     every force and moment on this side is rounded to ~1e-7 relative. That bias
-##     is systematic rather than a random walk, so over a 2000-step flight it
-##     integrates to ~2e-4 of the bank angle — about 0.01 rad at a 45 deg bank,
-##     matching the measured |dn| = 0.010. A 0.01 rad bank error tilts the lift
-##     vector by ~0.1 m/s^2, which over the last seconds of flight is ~0.7 m of
-##     lateral drift — exactly the residual measured on the 8-second drives.
-##
-## So the tolerances scale with flight length. Short flights land an order of
-## magnitude inside them (aviar_putt 0.08%, teebird 0.05%) while the long drives
-## sit near 0.6%. Every measured maximum is printed next to its assertion, so the
-## margin is always visible rather than implied.
-##
-## The honest fix is to carry the moment chain in explicit doubles instead of
-## Vector3; that is real follow-up work, not a tolerance question.
+## Worth recording, because it is the whole argument for having this test: an
+## earlier revision of these two implementations disagreed by 0.6% (0.67 m over
+## 111 m). That was NOT precision. The Python side was applying the empirical
+## precession factor as `I_zz/(I_zz - I_xy)` while this side used a flat 2.0, and
+## that ratio is 2.0074..2.0155 across the shipped roster — a 0.4-0.8%
+## disc-dependent difference in precession gain, which is exactly the size of the
+## trajectory gap it produced. Separating the gain from the inertia term on both
+## sides (CONTRACT v3) collapsed the disagreement by four orders of magnitude.
+## Two independent implementations are how that was found at all.
 
 const DiscDef := preload("res://scripts/physics/disc_definition.gd")
 const Library := preload("res://scripts/physics/disc_library.gd")
@@ -47,12 +36,12 @@ const Sim := preload("res://scripts/physics/disc_flight_sim.gd")
 const Support := preload("res://tests/test_support.gd")
 
 ## Trajectory agreement, as a fraction of the distance flown.
-const POS_REL_TOL := 8.0e-3
+const POS_REL_TOL := 1.0e-4
 ## Absolute floor so short flights are not held to an unreasonable absolute bound.
-const POS_ABS_TOL := 0.05
-## Disc normal is a unit vector; 0.02 is ~1.1 degrees of attitude.
-const NORMAL_TOL := 0.02
-const SPIN_REL_TOL := 5.0e-4
+const POS_ABS_TOL := 0.01
+## Disc normal is a unit vector; 2e-4 is ~0.011 degrees of attitude.
+const NORMAL_TOL := 2.0e-4
+const SPIN_REL_TOL := 1.0e-4
 
 var _skipped_shapes := PackedStringArray()
 
@@ -203,27 +192,27 @@ func _compare_one(t: Support, lib: Library, dir_path: String, file_name: String)
 	t.check("%s: spin agrees" % name,
 		worst_spin <= SPIN_REL_TOL * maxf(launch_spin, 1.0),
 		"max |dspin| = %s rad/s of %.1f" % [Support.g(worst_spin, 3), launch_spin])
-	t.check("%s: angle of attack agrees" % name, worst_alpha < 0.25,
+	t.check("%s: angle of attack agrees" % name, worst_alpha < 0.02,
 		"max |dalpha| = %.4f deg" % worst_alpha)
 
 	# Summary metrics. The reference's `distance_m` is the horizontal distance
 	# from the origin, which is our `horizontal_distance_m`.
 	var res: Dictionary = d.get("result", {})
 	t.close("%s: distance" % name, r.horizontal_distance_m,
-		float(res.get("distance_m", 0.0)), maxf(0.25, 0.006 * scale), " m")
+		float(res.get("distance_m", 0.0)), maxf(0.02, 3.0e-4 * scale), " m")
 	# Lateral gets the same absolute budget as distance rather than one scaled to
 	# its own value: on an S-curve drive the landing lateral is the small residual
 	# of a +-10 m swing, so a 0.5% error in the swing is a large fraction of the
 	# residual. Judging it against its own magnitude would be demanding
 	# better-than-double agreement out of float32 arithmetic.
 	t.close("%s: lateral" % name, r.lateral_m, float(res.get("lateral_m", 0.0)),
-		maxf(0.25, 0.010 * scale), " m")
+		maxf(0.02, 3.0e-4 * scale), " m")
 	t.close("%s: max height" % name, r.max_height_m,
-		float(res.get("max_height_m", 0.0)), maxf(0.05, 0.004 * scale), " m")
+		float(res.get("max_height_m", 0.0)), maxf(0.02, 3.0e-4 * scale), " m")
 	t.close("%s: flight time" % name, r.flight_time_s,
-		float(res.get("flight_time_s", 0.0)), 0.03, " s")
+		float(res.get("flight_time_s", 0.0)), 0.01, " s")
 	t.close("%s: spin loss" % name, 1.0 - r.spin_retained,
-		float(res.get("spin_loss_frac", 0.0)), 0.002)
+		float(res.get("spin_loss_frac", 0.0)), 5.0e-4)
 	return rel
 
 
@@ -250,6 +239,10 @@ func _compare_spin_sensitivity(t: Support, lib: Library, dir_path: String) -> vo
 
 	var sim := Sim.new()
 	sim.configure(disc, Sim.make_environment())
+	# The reference samples every 6 substeps. Match that: `tilt at t = 1 s` is read
+	# off the first sample at or after 1 s, and at ~40 deg/s of bank rate a
+	# half-sample offset is most of a degree of spurious disagreement.
+	sim.sample_dt = 6.0 / 240.0
 	var worst_tilt: float = 0.0
 	var worst_tilt_rel: float = 0.0
 	var worst_dist: float = 0.0
@@ -272,16 +265,21 @@ func _compare_spin_sensitivity(t: Support, lib: Library, dir_path: String) -> vo
 	# releases that turn all the way over, so an absolute degree budget would be
 	# far stricter at the top of the sweep than at the bottom for no reason; the
 	# float32 mechanism described at the top of this file is proportional.
-	t.check("spin sweep tilt response matches the reference", worst_tilt_rel < 0.015,
+	t.check("spin sweep tilt response matches the reference", worst_tilt_rel < 0.005,
 		"max |dtilt| = %.4f deg (%.2f%% of the reference tilt) over %d spins"
 			% [worst_tilt, 100.0 * worst_tilt_rel, rows.size()])
-	t.check("spin sweep distances match the reference", worst_dist < 0.6,
+	t.check("spin sweep distances match the reference", worst_dist < 0.05,
 		"max |ddist| = %.3f m" % worst_dist)
 
 
 func _tilt_at(r: Sim.FlightResult, t_query: float) -> float:
+	# The epsilon matters. Sample times are accumulated as repeated `t += 1/240`,
+	# so the sample nominally at t = 1.0 can land at 0.99999999999. The reference
+	# dump rounds its times to 5 dp, which snaps it to exactly 1.0; without the
+	# epsilon this side would step past it and read the NEXT sample, 25 ms later.
+	# At ~40 deg/s of bank rate that is a spurious degree of disagreement.
 	for s in r.samples:
-		if float(s["t"]) >= t_query:
+		if float(s["t"]) >= t_query - 1e-6:
 			var n: Vector3 = s["normal"]
 			return rad_to_deg(atan2(n.x, n.y))
 	return NAN
@@ -331,8 +329,8 @@ func _compare_hyzer_sweep(t: Support, lib: Library, dir_path: String) -> void:
 				float(rr["hyzer_deg"])]
 		worst_lat = maxf(worst_lat, dl)
 	# The fixture rounds to 0.1 m, so ~0.05 m of the budget is quantisation.
-	t.check("hyzer sweep distances match the reference", worst_dist < 1.5,
+	t.check("hyzer sweep distances match the reference", worst_dist < 0.12,
 		"max |ddist| = %.3f m over %d releases (worst at %s)" % [worst_dist,
 			rows.size(), worst_row])
-	t.check("hyzer sweep laterals match the reference", worst_lat < 1.5,
+	t.check("hyzer sweep laterals match the reference", worst_lat < 0.12,
 		"max |dlat| = %.3f m" % worst_lat)

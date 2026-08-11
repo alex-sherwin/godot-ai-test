@@ -196,8 +196,13 @@ func _test_spin_reduces_response(t: Support, lib: Library) -> void:
 ## Signed tilt of the disc normal away from vertical, positive = tilted right
 ## (anhyzer / turning). This is the direct precession response.
 func _tilt_at(r: Sim.FlightResult, t_query: float) -> float:
+	# The epsilon matters. Sample times are accumulated as repeated `t += 1/240`,
+	# so the sample nominally at t = 1.0 can land at 0.99999999999. The reference
+	# dump rounds its times to 5 dp, which snaps it to exactly 1.0; without the
+	# epsilon this side would step past it and read the NEXT sample, 25 ms later.
+	# At ~40 deg/s of bank rate that is a spurious degree of disagreement.
 	for s in r.samples:
-		if float(s["t"]) >= t_query:
+		if float(s["t"]) >= t_query - 1e-6:
 			var n: Vector3 = s["normal"]
 			return rad_to_deg(atan2(n.x, n.y))
 	return NAN
@@ -333,7 +338,7 @@ func _test_hyzer_sign(t: Support, lib: Library) -> void:
 
 func _lateral_at(r: Sim.FlightResult, t_query: float) -> float:
 	for s in r.samples:
-		if float(s["t"]) >= t_query:
+		if float(s["t"]) >= t_query - 1e-6:
 			return (s["pos"] as Vector3).x
 	return (r.samples[-1]["pos"] as Vector3).x if not r.samples.is_empty() else 0.0
 

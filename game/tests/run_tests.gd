@@ -4,10 +4,16 @@ extends SceneTree
 ##
 ##     godot --headless --path game --script res://tests/run_tests.gd
 ##
-## Exits non-zero if any check fails, so CI can gate on it. No prior `--import`
-## pass is needed: every cross-file reference in `scripts/physics/**` and here
-## goes through `preload()` rather than a global `class_name`, because Godot only
-## populates the global script-class cache during an editor/import pass.
+## Exits non-zero if any check fails, so CI can gate on it.
+##
+## No `--import` pass is needed for the code to RESOLVE: every cross-file
+## reference in `scripts/physics/**` and here goes through `preload()` rather than
+## a global `class_name`, because Godot only populates the global script-class
+## cache during an editor/import pass, and a bare `--script` run never does. It is
+## still worth running `godot --headless --path game --import` once first in CI
+## (it takes ~2 s): with the cache absent, Godot has been observed to block on
+## shutdown after the suite has finished and printed its result, which turns a
+## passing run into a timeout.
 ##
 ## Termination is guaranteed. A GDScript runtime error unwinds the whole call
 ## stack back to the engine, so if it happened inside `_initialize()` the
