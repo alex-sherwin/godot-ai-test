@@ -15,7 +15,7 @@ Regenerate and verify:
 ```bash
 python -m tools.aero.bake            # rewrite everything
 python -m tools.aero.bake --check    # assert the committed files are current
-python -m pytest tools/aero          # 108 tests + 1 recorded miss
+python -m pytest tools/aero          # 112 tests
 ```
 
 ---
@@ -232,8 +232,17 @@ it yields roughly **0.2%** spin loss over a drive, against the 10–20% that is
 actually observed. The value and the equation are incompatible; shipping both
 unchanged would be self-consistent only on paper. We therefore ship
 `c_nr = -3.0e-3`, calibrated to that equation, and keep Hummel's raw number in
-`damping.provenance.c_nr_hummel_2003_raw` so nothing is hidden. The reference
-integrator measures **12.1%** spin loss on the CONTRACT §5 distance drive.
+`damping.provenance.c_nr_hummel_2003_raw` so nothing is hidden.
+
+Re-checked after the §4 v2 precession correction changed flight times, and
+**kept unchanged**. It now gives **11.7%** spin loss over the CONTRACT §5
+distance drive (7.7% over a shorter flat throw — less time, less loss, which is
+the correct behaviour), and an initial decay rate of 2.8%/s at 27 m/s and
+157 rad/s. That rate independently matches a turbulent skin-friction estimate
+integrated over both disc faces (`C_f ≈ 0.005` gives 2.4%/s), which constrains
+the value better than the round "~15%" figure does. Raising it to -4.0e-3 would
+hit 15.3% on that one throw at the cost of a ~30% disagreement with the
+first-principles estimate; we did not.
 
 ---
 
@@ -243,73 +252,103 @@ Numbers from `python -m tools.aero.validate` (sea level, 1.225 kg/m³, no wind,
 RK4 at 1/240 s, launch height 1.4 m). Full trajectories are dumped to
 `tools/aero/validation/`.
 
+> **Regenerated for CONTRACT §4 v2.** The precession law was corrected from
+> `−M/(I_zz·ω)` to `−M/((I_zz − I_xy)·ω)` — a factor of ~2 for a flat disc.
+> Every number below moved. Fixtures generated against the v1 law are stale.
+
 | throw | dist | lateral | max right | peak | time | spin lost |
 |---|---|---|---|---|---|---|
-| Destroyer, 27 m/s, 25 rev/s, 8° hyzer | **115.8 m** | +5.7 m | 13.8 m | 12.0 m | 9.37 s | 12.1% |
-| Aviar, 13 m/s, 10 rev/s | 21.0 m | -1.7 m | 0.0 m | 1.7 m | 1.98 s | 2.8% |
-| Roadrunner, 25 m/s flat | 89.1 m | +31.2 m | 31.2 m | 7.0 m | 6.09 s | 9.5% |
-| Firebird, 25 m/s, 5° hyzer | 83.4 m | -26.2 m | 0.0 m | 9.2 m | 6.17 s | 9.2% |
-| Teebird, 23 m/s, 3° hyzer | 80.6 m | -18.9 m | 0.0 m | 6.8 m | 6.11 s | 10.0% |
-| Buzzz, 20 m/s flat | 59.0 m | -4.7 m | 0.6 m | 4.0 m | 4.94 s | 8.3% |
-| Destroyer RHFH (mirror) | 115.8 m | -5.7 m | 0.3 m | 12.0 m | 9.37 s | 12.1% |
+| Destroyer, 27 m/s, 25 rev/s, 13° up, 22° hyzer | **111.7 m** | +1.6 m | 9.7 m | 11.9 m | 8.29 s | 11.7% |
+| Wraith, 27 m/s, 25 rev/s, 12° up, 15° hyzer | 108.6 m | +2.7 m | 10.7 m | 11.2 m | 8.00 s | 11.4% |
+| Aviar drive, 18 m/s, 14 rev/s | **40.4 m** | -5.9 m | 0.0 m | 3.3 m | 3.28 s | 5.5% |
+| Aviar putt, 13 m/s | 19.1 m | -2.0 m | 0.0 m | 1.7 m | 1.76 s | 2.6% |
+| Roadrunner, 27 m/s flat | 60.1 m | +13.3 m | 13.3 m | 5.9 m | 2.98 s | 6.4% |
+| Firebird, 25 m/s, 5° hyzer | 77.8 m | -21.9 m | 0.0 m | 9.0 m | 5.32 s | 8.5% |
+| Teebird, 23 m/s, 3° hyzer | 75.3 m | -16.7 m | 0.0 m | 6.7 m | 5.39 s | 9.3% |
+| Buzzz, 20 m/s flat | 55.9 m | -3.7 m | 1.2 m | 4.0 m | 4.44 s | 7.9% |
+| Destroyer RHFH (mirror) | 111.7 m | -1.6 m | 1.6 m | 11.9 m | 8.29 s | 11.7% |
 
-Against the CONTRACT §5 sanity targets:
+Against the CONTRACT §5 v2 sanity targets — **all four now met**:
 
 * **12/5/-1/3 at ~27 m/s, ~25 rev/s, small hyzer → 105–130 m with an early right
-  turn and a left fade finish.** Met: 115.8 m, turns out to +13.8 m then fades
-  back to +5.7 m. The sign flip lives in `CM(α)` — it crosses zero at α ≈ 3.5°
-  partway through the flight — not in spin decay.
+  turn and a left fade finish.** Met: 111.7 m, turns out to +9.7 m then fades
+  back to +1.6 m. The sign flip lives in `CM(α)`, not in spin decay.
+
+  With one caveat worth stating: it takes **22°** of hyzer, not the 8° that
+  worked under the halved v1 precession. Two reasons, both real. The corrected
+  law roughly doubles the fade, so a flatter release now flips and runs right.
+  And the measured `dd2` data is more understable than the Destroyer's published
+  rating — the turn regression reads it as **-1.9, not -1** — so it needs more
+  hyzer than a nominal 12/5/-1/3 disc would. The *derived* Wraith, whose `CM`
+  anchors sit exactly on its published 11/5/-1/3, meets the target at 15°.
+
+  Because the target is release-sensitive, `tools/aero/validation/hyzer_sweep.json`
+  publishes the whole 24-release grid rather than one throw. Four releases
+  (hyzer 20–26°, launch 11–14°) meet §5; quoting only one would overstate how
+  well-determined it is.
+
+* **2/3/0/1 putter at ~18 m/s → 40–60 m, nearly straight with a gentle fade.**
+  Met: 40.4 m, 5.9 m of left fade. Honestly, it sits on the *bottom edge* of the
+  band. The model was not touched when this target was corrected from 13 m/s,
+  and the same throw at 13 m/s still returns 20.0 m — a test asserts that, so
+  nobody can quietly tune toward the old figure later.
+
+* **More spin → less turn and less fade.** Met on the attitude, which is what
+  `Ω = τ/(I_zz·ω)` says: disc tilt at t = 2 s falls 77.0° → 51.4° → 39.7° →
+  32.5° → 27.5° as spin goes 15 → 35 rev/s. Landing drift moves the *other* way
+  (11.3 → 16.2 → 20.5 → 24.7 → 29.6 m) because more spin also keeps the disc
+  flat, which keeps it airborne longer (2.75 s → 4.93 s), which gives the
+  residual bank more time to work. Both are reported; quoting only the second
+  would make the model look broken when it is not.
+
+* **Understable disc thrown flat and fast turns over and may roll.** Now met —
+  this was the target that only reached 23° of tilt under v1. The Roadrunner at
+  27 m/s flat reaches **69.8°** of tilt and stays there: it turns over hard,
+  never stands back up, and dumps at 60.1 m. That is a roller in all but name.
+
 * **RHFH mirrors RHBH exactly.** Met, to 1e-6.
-* **More spin → less turn and less fade.** Met *on the attitude*, which is what
-  `Ω = τ/(I_zz·ω)` actually says: disc tilt at t = 2 s falls 32.3° → 23.7° →
-  18.7° → 15.5° → 13.2° as spin goes 15 → 35 rev/s. Landing drift is **not**
-  monotone (24.8 → 35.3 → 46.4 → 51.5 → 47.3 m), because more spin also keeps
-  the disc flat, which keeps it airborne longer, which gives the residual bank
-  more time to work. Both are reported; quoting only the second would make the
-  model look broken when it is not.
-* **Understable disc thrown flat and fast turns over.** Partly met: the
-  Roadrunner at 25 m/s flat runs 31 m right and never fades back, but it only
-  reaches 23° of tilt, so it does not reach a roller attitude. See the
-  precession note below.
-* **2/3/0/1 putter at ~13 m/s → 40–60 m.** **Not met: we get 21.0 m.** The shape
-  is right (nearly straight, gentle left fade) but the distance is not. 13 m/s
-  is roughly a 10 m putt; this model needs ~18 m/s to reach the band (17 m/s →
-  38.4 m, 18 m/s → 43.4 m, 20 m/s → 53.9 m). The test for this target exists and
-  is marked `xfail(strict=True)` rather than loosened.
 
 ### Cross-validation against `shotshaper`
 
-The reference implementation from the same authors as the CFD dataset. With its
-precession law substituted for ours, our integrator reproduces it closely, which
-verifies everything in `validate.py` *except* that one constant:
+Since §4 v2 we use the same precession law as the reference implementation from
+the authors of the CFD dataset, so the *whole* integrator is checked against
+theirs rather than everything-but-one-constant. On their own example throw the
+agreement is within 0.4%:
 
-| throw | shotshaper | ours, matched precession | ours, Euler precession |
+| throw | shotshaper | ours (§4 v2) | ours with the v1 naive law |
 |---|---|---|---|
-| their example (24.2 m/s, 15.5°, 14.7° roll) | 82.1 m, 6.87 s, 11.5 m peak | 81.7 m, 6.73 s, 11.5 m | 76.5 m, 6.88 s, 12.1 m |
-| flat, 27 m/s, 25 rev/s | 75.0 m, 4.13 s | 72.1 m, 3.75 s | 108.7 m, 7.28 s |
+| their example (24.2 m/s, 15.5°, 14.7° roll) | 82.1 m, 6.87 s, 11.5 m peak, -4.2 lat | **81.8 m, 6.81 s, 11.5 m, -4.1** | 76.6 m, 6.90 s, 12.1 m, -26.4 |
+| flat, 27 m/s, 25 rev/s | 75.0 m, 4.13 s, 8.9 m, +24.9 | **72.8 m, 3.80 s, 8.2 m, +20.5** | 108.9 m, 7.31 s, 10.4 m, +46.6 |
 
-### The precession disagreement, stated plainly
+The residual on the flat throw is our damping and spin-down terms, which their
+model does not have at all. The third column is kept, and asserted by a test, so
+the size of the v1 error stays visible: it nearly doubles the flight time of a
+flat drive and lands it 26 m further right.
 
-`shotshaper` rolls at `−M/(ω(I_xy − I_z))`. CONTRACT §4 mandates
-`−M/(I_zz·ω)`, and that is what we implement. The contract is right on the
-derivation: the `(I_a − I_t)` form comes from setting `ṗ = q̇ = 0` in the Euler
-equations written in the *spinning* body frame, where the transverse rate
-components are not constant during steady precession. Done in the non-spinning
-frame the `I_xy` terms cancel. For a flat disc `I_xy ≈ I_zz/2`, so the two
-differ by a factor of ~2.
+### The one coefficient the source data cannot contain
 
-But the honest consequence: **their (incorrect) law matches their measured
-throws better than the correct one does.** Half the precession means half the
-fade, so our discs hold their turn longer and land wider — the flat Destroyer
-runs 46 m right where theirs runs 25 m, and our flight times are long (9.4 s for
-a 116 m drive, against a real ~6 s). We follow the contract and do not tune
-around it. Two candidate explanations, neither verified: the CFD pitching moment
-may be too strong by roughly that factor, or the missing spin-induced roll
-moment — which the CFD dataset does not contain **at all**, and which Potts &
-Crowther measured as `CRr` — supplies the balance. Resolving this is the single
-highest-value thing anyone could do to this model.
+There is no spin-induced roll moment (`CRr`) anywhere in this model. The
+Giljarhus data is steady-state RANS on a **non-rotating** disc, so it
+structurally cannot contain one — an omission in the source, not a
+simplification we chose.
 
----
+Transplanting Hummel's Ultimate-disc `CRr = 0.00171` was tried and **rejected**.
+Under her `√(d/g)` non-dimensionalisation it produces a rolling moment
+**2.25× larger than the pitching moment** at launch — it would be the dominant
+term in the model, sourced from a different disc. Neither sign survives:
+
+| `CRr` | distance | lateral | flight time |
+|---|---|---|---|
+| 0 (shipped) | 111.7 m | +1.6 m | 8.29 s |
+| +0.00171 | 41.8 m | -37.0 m | 4.33 s |
+| -0.00171 | 20.5 m | -1.0 m | 0.85 s |
+| +0.0005 | 52.0 m | -28.7 m | 5.93 s |
+| -0.0005 | 42.9 m | +0.3 m | 1.85 s |
+
+The number is not transferable to this frame and non-dimensionalisation. Left
+out and recorded, rather than scaled down until it looked harmless. Measuring
+`CRr` for an actual golf disc — CFD on a *rotating* disc, or a wind-tunnel
+run — remains the highest-value thing anyone could add to this model.
 
 ## Citations
 

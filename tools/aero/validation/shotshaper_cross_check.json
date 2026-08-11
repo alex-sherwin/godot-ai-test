@@ -14,17 +14,17 @@
    "max_height_m": 11.5,
    "lateral_m": -4.2
   },
-  "ours_matched_precession": {
-   "distance_m": 81.69,
-   "flight_time_s": 6.73,
-   "max_height_m": 11.47,
-   "lateral_m": -3.54
+  "ours": {
+   "distance_m": 81.78,
+   "flight_time_s": 6.81,
+   "max_height_m": 11.53,
+   "lateral_m": -4.1
   },
-  "ours_euler_precession": {
-   "distance_m": 76.51,
-   "flight_time_s": 6.88,
-   "max_height_m": 12.14,
-   "lateral_m": -26.26
+  "ours_naive_gyroscopic": {
+   "distance_m": 76.58,
+   "flight_time_s": 6.9,
+   "max_height_m": 12.13,
+   "lateral_m": -26.41
   }
  },
  "flat_27": {
@@ -42,17 +42,17 @@
    "max_height_m": 8.9,
    "lateral_m": 24.9
   },
-  "ours_matched_precession": {
-   "distance_m": 72.11,
-   "flight_time_s": 3.75,
-   "max_height_m": 8.13,
-   "lateral_m": 20.03
+  "ours": {
+   "distance_m": 72.75,
+   "flight_time_s": 3.8,
+   "max_height_m": 8.17,
+   "lateral_m": 20.52
   },
-  "ours_euler_precession": {
-   "distance_m": 108.68,
-   "flight_time_s": 7.28,
-   "max_height_m": 10.37,
-   "lateral_m": 46.38
+  "ours_naive_gyroscopic": {
+   "distance_m": 108.93,
+   "flight_time_s": 7.31,
+   "max_height_m": 10.38,
+   "lateral_m": 46.6
   }
  }
 }

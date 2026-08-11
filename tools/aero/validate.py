@@ -30,26 +30,35 @@ Sign conventions (CONTRACT §1) — get these wrong and turn/fade invert
 * World frame Y-up, ``-Z`` downrange, ``+X`` to the thrower's right.
 * ``spin > 0`` is RHBH: clockwise seen from above, so the **angular velocity
   vector points down**, along ``-normal``.  Hence ``L = -I_zz * spin * n``.
-* Precession follows from ``dL/dt = M``:
+* Precession, CONTRACT §4 **v2**:
 
-      dn/dt = -M_perp / (I_zz * spin)
+      dn/dt = -M_perp / ((I_zz - I_xy) * spin)
 
-  Not ``-M / (omega * (I_xy - I_z))``, which is what ``shotshaper`` uses.  That
-  form comes from setting ``pdot = qdot = 0`` in the Euler equations written in
-  the *spinning* body frame, where the transverse rate components are not
-  constant during steady precession, so the steady-state assumption does not
-  hold.  Done in the non-spinning frame the ``I_xy`` terms cancel and you get
-  the expression above — smaller by ``I_zz/(I_zz - I_xy) ~= 2`` for a flat disc,
-  and of the opposite sign in their frame convention.  Their model is tuned
-  end-to-end so it may self-cancel internally; do not mix the two.
+  Note the denominator is ``I_zz - I_xy``, not ``I_zz``.  Since ``I_xy ~=
+  I_zz/2`` for a flat disc this is twice the naive gyroscopic rate, and the
+  factor matters enormously: halved precession means halved fade, which makes
+  the disc glide instead of dumping.  The v1 contract mandated the naive form
+  and this module implemented it; measured here, it produced 9.4 s flight times
+  for a drive that should fly ~6 s.  ``shotshaper``'s
+  ``-M/(omega*(I_xy - I_z))`` is the same expression and is correct.
+  The axial equation is unaffected: spin-down still divides by ``I_zz``.
 * Spin-down carries the full ``0.5*rho*V^2*A*d`` scaling, which Hummel's
   published MATLAB omits.  See ``coefficients.DAMPING_PROVENANCE``.
+* ``hyzer_angle_rad``: positive banks the disc **left** for a RHBH throw, so a
+  hyzer release finishes left.  CONTRACT §4 v2 confirms this; v1's parenthetical
+  said the opposite and was wrong.
 
-.. note:: CONTRACT §4 annotates ``hyzer_angle_rad`` as "+ = hyzer (right edge
-   down for RHBH)", which contradicts §5, where a right bank is what makes the
-   disc *turn right*.  Hyzer is the fade direction.  We implement §5: positive
-   ``hyzer_angle_rad`` banks the disc **left** (left edge down) for a RHBH
-   throw, so a hyzer release finishes left.  Flagged for Track B.
+What is *not* modelled, and why it is the leading remaining gap
+--------------------------------------------------------------
+There is no spin-induced roll moment (``CRr``).  The Giljarhus CFD is
+steady-state RANS on a **non-rotating** disc, so the dataset structurally cannot
+contain one — this is an omission in the source data, not a simplification we
+chose.  Transplanting Hummel's Ultimate-disc ``CRr = 0.00171`` was tried and
+rejected: under her ``sqrt(d/g)`` non-dimensionalisation it produces a moment
+**2.25x larger than the pitching moment** at launch, and neither sign gives a
+survivable flight (the canonical drive collapses from 111.7 m to 41.8 m with
+``+CRr`` and to 20.5 m with ``-CRr``).  The number is not transferable to this
+frame.  Left out, and recorded rather than fudged.
 """
 
 from __future__ import annotations
@@ -238,6 +247,9 @@ def _derivative(disc: DiscDefinition, y: np.ndarray, env: Environment) -> np.nda
     nondim = d / (2.0 * speed)
 
     spin_eff = spin if abs(spin) >= MIN_ABS_SPIN_RAD_S else math.copysign(MIN_ABS_SPIN_RAD_S, spin or 1.0)
+    # CONTRACT §4 v2: the precession denominator is (I_zz - I_xy), not I_zz.
+    # Spin-down still divides by I_zz, which is the axial equation and unaffected.
+    i_prec = disc.I_zz - disc.I_xy
 
     # Pitch axis: rotating the normal about +j increases alpha (nose up), so a
     # positive CM is a nose-up moment, as CONTRACT §5 requires.
@@ -249,7 +261,7 @@ def _derivative(disc: DiscDefinition, y: np.ndarray, env: Environment) -> np.nda
     # rate a function of the moment, so the damping feedback is evaluated on the
     # undamped rate. The correction is ~0.1% of the static moment.
     m_static = qad * cm * j
-    dn_static = -(m_static - float(np.dot(m_static, n)) * n) / (disc.I_zz * spin_eff)
+    dn_static = -(m_static - float(np.dot(m_static, n)) * n) / (i_prec * spin_eff)
     omega = np.cross(n, dn_static)
 
     c_mq = float(disc.table.damping["c_mq"])
@@ -260,7 +272,7 @@ def _derivative(disc: DiscDefinition, y: np.ndarray, env: Environment) -> np.nda
               + qad * c_mq * (float(np.dot(omega, j)) * nondim) * j)
     m_total = m_static + m_damp
 
-    dy[6:9] = -(m_total - float(np.dot(m_total, n)) * n) / (disc.I_zz * spin_eff)
+    dy[6:9] = -(m_total - float(np.dot(m_total, n)) * n) / (i_prec * spin_eff)
     # Spin-down, with the A*d scaling Hummel's published code drops.
     dy[9] = qad * c_nr * (spin * nondim) / disc.I_zz
     return dy
@@ -408,21 +420,40 @@ def simulate(
 REFERENCE_THROWS: dict[str, dict] = {
     "destroyer_power_drive": {
         "disc": "destroyer",
-        "target": "105-130 m; visible early right turn then a left fade finish",
-        "throw": dict(speed_mps=27.0, spin_rps=25.0, launch_angle_rad=math.radians(12.0),
-                      hyzer_angle_rad=math.radians(8.0), nose_angle_rad=0.0,
+        "target": "CONTRACT §5: 105-130 m, visible early right turn then a left fade finish",
+        "throw": dict(speed_mps=27.0, spin_rps=25.0, launch_angle_rad=math.radians(13.0),
+                      hyzer_angle_rad=math.radians(22.0), nose_angle_rad=0.0,
                       launch_height_m=1.4),
+        "note": ("22 deg of hyzer, not the 8 deg this fixture used under the v1 "
+                 "precession law. The measured dd2 data is more understable than "
+                 "the Destroyer's published rating - the regression reads it as "
+                 "turn -1.9, not -1 - so it needs more hyzer than a nominal "
+                 "12/5/-1/3 disc. See wraith_power_drive for the derived case, "
+                 "and validation/hyzer_sweep.json for the full sensitivity."),
+    },
+    "wraith_power_drive": {
+        "disc": "wraith",
+        "target": "a derived 11/5/-1/3 disc whose CM anchors sit exactly on the published ratings",
+        "throw": dict(speed_mps=27.0, spin_rps=25.0, launch_angle_rad=math.radians(12.0),
+                      hyzer_angle_rad=math.radians(15.0), nose_angle_rad=0.0,
+                      launch_height_m=1.4),
+    },
+    "aviar_drive": {
+        "disc": "aviar",
+        "target": "CONTRACT §5 v2: 2/3/0/1 putter at ~18 m/s -> 40-60 m, nearly straight with a gentle fade",
+        "throw": dict(speed_mps=18.0, spin_rps=14.0, launch_angle_rad=math.radians(10.0),
+                      hyzer_angle_rad=0.0, nose_angle_rad=0.0, launch_height_m=1.4),
     },
     "aviar_putt": {
         "disc": "aviar",
-        "target": "40-60 m; nearly straight with a gentle fade",
+        "target": "an actual putt (13 m/s) - not a §5 target, kept as a low-speed reference",
         "throw": dict(speed_mps=13.0, spin_rps=10.0, launch_angle_rad=math.radians(8.0),
                       hyzer_angle_rad=0.0, nose_angle_rad=0.0, launch_height_m=1.4),
     },
     "roadrunner_flat_fast": {
         "disc": "roadrunner",
-        "target": "understable: thrown flat and fast it should turn over, possibly roll",
-        "throw": dict(speed_mps=25.0, spin_rps=22.0, launch_angle_rad=math.radians(10.0),
+        "target": "CONTRACT §5: understable (turn -4) thrown flat and fast should turn over and may roll",
+        "throw": dict(speed_mps=27.0, spin_rps=24.0, launch_angle_rad=math.radians(10.0),
                       hyzer_angle_rad=0.0, nose_angle_rad=0.0, launch_height_m=1.4),
     },
     "firebird_overstable": {
@@ -441,9 +472,9 @@ REFERENCE_THROWS: dict[str, dict] = {
     },
     "destroyer_rhfh": {
         "disc": "destroyer",
-        "target": "same throw with negative spin (RHFH) must mirror",
-        "throw": dict(speed_mps=27.0, spin_rps=-25.0, launch_angle_rad=math.radians(12.0),
-                      hyzer_angle_rad=math.radians(-8.0), nose_angle_rad=0.0,
+        "target": "the canonical drive with negative spin (RHFH) - must mirror exactly",
+        "throw": dict(speed_mps=27.0, spin_rps=-25.0, launch_angle_rad=math.radians(13.0),
+                      hyzer_angle_rad=math.radians(-22.0), nose_angle_rad=0.0,
                       launch_height_m=1.4),
     },
     "buzzz_midrange": {
@@ -453,6 +484,37 @@ REFERENCE_THROWS: dict[str, dict] = {
                       hyzer_angle_rad=0.0, nose_angle_rad=0.0, launch_height_m=1.4),
     },
 }
+
+
+def hyzer_sweep(disc_id: str = "destroyer") -> list[dict]:
+    """Release angle sensitivity at fixed power.
+
+    Published because the CONTRACT §5 distance target is genuinely sensitive to
+    it: at 27 m/s a 12-speed is understable, so the release is a hyzer-flip and
+    the amount of hyzer decides whether the disc flips early and runs right or
+    flips late and fades back. Quoting a single throw without this table would
+    overstate how well-determined the result is.
+    """
+    disc = load_disc(disc_id)
+    rows = []
+    for launch_deg in (11.0, 12.0, 13.0, 14.0):
+        for hyzer_deg in (8.0, 12.0, 16.0, 20.0, 22.0, 26.0):
+            r = simulate(disc, ThrowParams(
+                speed_mps=27.0, spin_rps=25.0,
+                launch_angle_rad=math.radians(launch_deg),
+                hyzer_angle_rad=math.radians(hyzer_deg), launch_height_m=1.4))
+            rows.append({
+                "launch_deg": launch_deg, "hyzer_deg": hyzer_deg,
+                "distance_m": round(r.distance_m, 1),
+                "lateral_m": round(r.lateral_m, 1),
+                "max_right_m": round(r.max_right_m, 1),
+                "max_height_m": round(r.max_height_m, 1),
+                "flight_time_s": round(r.flight_time_s, 2),
+                "meets_contract_5": bool(105.0 <= r.distance_m <= 130.0
+                                         and r.max_right_m > 5.0
+                                         and r.lateral_m < r.max_right_m - 5.0),
+            })
+    return rows
 
 
 def run_reference_throws() -> dict[str, dict]:
@@ -519,17 +581,19 @@ def spin_sensitivity(disc_id: str = "destroyer") -> list[dict]:
 
 
 def putter_speed_sweep() -> list[dict]:
-    """CONTRACT §5 asks for 40-60 m from a 2/3/0/1 putter at ~13 m/s.
+    """CONTRACT §5 v2 asks for 40-60 m from a 2/3/0/1 putter at ~18 m/s.
 
-    We do not reach it: see ``game/data/README.md``. This sweep is here so the
-    gap is visible rather than argued about — 13 m/s is roughly a 10 m putt, and
-    the 40-60 m band needs about 18 m/s.
+    Met, but only just: 40.4 m sits on the bottom edge of the band. Published as
+    a sweep so the margin is visible. (§5 v1 asked for the same band at 13 m/s,
+    which the coordinator has since corrected — 13 m/s is a putting speed, not a
+    putter drive. We did not tune toward the old figure and this sweep still
+    reports it: 19.0 m.)
     """
     disc = load_disc("aviar")
     rows = []
-    for u in (13.0, 15.0, 17.0, 18.0, 20.0):
-        r = simulate(disc, ThrowParams(speed_mps=u, spin_rps=0.75 * u,
-                                       launch_angle_rad=math.radians(8.0),
+    for u in (13.0, 15.0, 17.0, 18.0, 20.0, 22.0):
+        r = simulate(disc, ThrowParams(speed_mps=u, spin_rps=max(10.0, 0.78 * u),
+                                       launch_angle_rad=math.radians(10.0),
                                        launch_height_m=1.4))
         rows.append({"speed_mps": u, "distance_m": round(r.distance_m, 2),
                      "lateral_m": round(r.lateral_m, 2),
@@ -564,47 +628,40 @@ SHOTSHAPER_REFERENCE = {
 
 
 def shotshaper_cross_check() -> dict:
-    """Run our integrator against shotshaper's, with and without their
-    precession law.
+    """Run our integrator against ``shotshaper``'s on the same disc and throws.
 
-    ``matched`` swaps our ``I_zz`` for ``I_zz - I_xy``, which is exactly what
-    their ``-M/(omega*(I_xy - I_z))`` amounts to.  If our integrator is right,
-    ``matched`` should reproduce their numbers closely — and it does, to within
-    about 1% on distance and 2% on flight time.  That verifies everything in
-    this module *except* the precession constant.
+    Since CONTRACT §4 v2 we use the same precession law they do, so ``ours``
+    should track them closely — and does, to within about 4% on distance and 9%
+    on flight time. The residual is our damping and spin-down terms, which their
+    model does not have at all.
 
-    ``ours`` uses the Euler-derived ``-M/(I_zz*omega)`` that CONTRACT §4
-    mandates.  It differs from theirs by a factor of ``I_zz/(I_zz - I_xy) ~ 2``,
-    and the difference is large: half the precession means half the fade, so the
-    disc drifts further right and lands wider.  We follow the contract, but the
-    disagreement is real and is recorded in ``game/data/README.md`` rather than
-    hidden — their end-to-end validation against measured throws favours their
-    law, which suggests the CFD pitching moment is too strong by roughly that
-    same factor, or that the missing spin-induced roll moment (which the CFD
-    dataset does not contain at all) supplies the balance.
+    ``ours_naive_gyroscopic`` re-runs with ``I_zz`` in place of ``I_zz - I_xy``,
+    i.e. the law CONTRACT v1 mandated and this module previously implemented. It
+    is kept so the size of that correction stays visible: it roughly doubles the
+    flight time of a flat drive and pushes the landing 35 m further right.
     """
     disc = load_disc("destroyer")
-    matched = DiscDefinition(disc.id, disc.mass_kg, disc.diameter_m, disc.area_m2,
-                             disc.I_zz - disc.I_xy, disc.I_xy, disc.table)
+    naive = DiscDefinition(disc.id, disc.mass_kg, disc.diameter_m, disc.area_m2,
+                           disc.I_zz + disc.I_xy, disc.I_xy, disc.table)
     out = {}
     for name, spec in SHOTSHAPER_REFERENCE.items():
         ours = simulate(disc, ThrowParams(**spec["throw"]))
-        match = simulate(matched, ThrowParams(**spec["throw"]))
+        nv = simulate(naive, ThrowParams(**spec["throw"]))
         out[name] = {
             "note": spec["note"],
             "throw": spec["throw"],
             "shotshaper_published": spec["shotshaper"],
-            "ours_matched_precession": {
-                "distance_m": round(match.distance_m, 2),
-                "flight_time_s": round(match.flight_time_s, 2),
-                "max_height_m": round(match.max_height_m, 2),
-                "lateral_m": round(match.lateral_m, 2),
-            },
-            "ours_euler_precession": {
+            "ours": {
                 "distance_m": round(ours.distance_m, 2),
                 "flight_time_s": round(ours.flight_time_s, 2),
                 "max_height_m": round(ours.max_height_m, 2),
                 "lateral_m": round(ours.lateral_m, 2),
+            },
+            "ours_naive_gyroscopic": {
+                "distance_m": round(nv.distance_m, 2),
+                "flight_time_s": round(nv.flight_time_s, 2),
+                "max_height_m": round(nv.max_height_m, 2),
+                "lateral_m": round(nv.lateral_m, 2),
             },
         }
     return out
@@ -629,6 +686,7 @@ def main(argv: list[str] | None = None) -> int:
     spin = spin_sensitivity()
     putt = putter_speed_sweep()
     cross = shotshaper_cross_check()
+    hyzer = hyzer_sweep()
 
     print(f"{'throw':26s} {'dist':>7s} {'lat':>7s} {'maxR':>7s} {'maxH':>6s} "
           f"{'time':>5s} {'spin-':>6s} {'bank':>7s}")
@@ -644,11 +702,15 @@ def main(argv: list[str] | None = None) -> int:
     print("\nputter speed sweep (aviar):")
     for row in putt:
         print("  " + json.dumps(row))
+    print("\nhyzer sensitivity (destroyer, 27 m/s, 25 rev/s) - rows meeting CONTRACT §5:")
+    for row in hyzer:
+        if row["meets_contract_5"]:
+            print("  " + json.dumps(row))
     print("\nshotshaper cross-check:")
     for name, row in cross.items():
         print(f"  {name}: shotshaper={row['shotshaper_published']}")
-        print(f"    ours(matched precession)={row['ours_matched_precession']}")
-        print(f"    ours(euler precession)  ={row['ours_euler_precession']}")
+        print(f"    ours                 ={row['ours']}")
+        print(f"    ours(naive gyroscopic)={row['ours_naive_gyroscopic']}")
 
     if args.dump:
         VALIDATION_DIR.mkdir(parents=True, exist_ok=True)
@@ -658,6 +720,9 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps({"disc": "destroyer", "speed_mps": 27.0,
                         "launch_angle_deg": 12.0, "rows": spin,
                         "putter_speed_sweep": putt}, indent=1) + "\n")
+        (VALIDATION_DIR / "hyzer_sweep.json").write_text(
+            json.dumps({"disc": "destroyer", "speed_mps": 27.0, "spin_rps": 25.0,
+                        "rows": hyzer}, indent=1) + "\n")
         (VALIDATION_DIR / "shotshaper_cross_check.json").write_text(
             json.dumps(cross, indent=1) + "\n")
         (VALIDATION_DIR / "README.md").write_text(
@@ -674,7 +739,7 @@ def main(argv: list[str] | None = None) -> int:
             "positive-is-left-bank for a RHBH throw, following CONTRACT §5\n"
             "(a right bank turns right); the parenthetical in §4 says the\n"
             "opposite and is believed to be an editorial slip.\n")
-        print(f"\nwrote {len(results) + 3} files to {VALIDATION_DIR}")
+        print(f"\nwrote {len(results) + 4} files to {VALIDATION_DIR}")
     return 0
 
 

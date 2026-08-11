@@ -5,80 +5,86 @@
  "rows": [
   {
    "spin_rps": 15.0,
-   "tilt_at_1s_deg": 20.381,
-   "tilt_at_2s_deg": 32.309,
-   "max_right_m": 24.82,
-   "lateral_m": 24.82,
-   "distance_m": 78.94,
-   "flight_time_s": 4.34
+   "tilt_at_1s_deg": 42.116,
+   "tilt_at_2s_deg": 76.998,
+   "max_right_m": 11.28,
+   "lateral_m": 11.28,
+   "distance_m": 58.25,
+   "flight_time_s": 2.75
   },
   {
    "spin_rps": 20.0,
-   "tilt_at_1s_deg": 15.232,
-   "tilt_at_2s_deg": 23.69,
-   "max_right_m": 35.3,
-   "lateral_m": 35.3,
-   "distance_m": 93.4,
-   "flight_time_s": 5.65
+   "tilt_at_1s_deg": 31.028,
+   "tilt_at_2s_deg": 51.364,
+   "max_right_m": 16.21,
+   "lateral_m": 16.21,
+   "distance_m": 66.11,
+   "flight_time_s": 3.28
   },
   {
    "spin_rps": 25.0,
-   "tilt_at_1s_deg": 12.166,
-   "tilt_at_2s_deg": 18.716,
-   "max_right_m": 46.38,
-   "lateral_m": 46.38,
-   "distance_m": 108.68,
-   "flight_time_s": 7.28
+   "tilt_at_1s_deg": 24.65,
+   "tilt_at_2s_deg": 39.713,
+   "max_right_m": 20.52,
+   "lateral_m": 20.52,
+   "distance_m": 72.75,
+   "flight_time_s": 3.8
   },
   {
    "spin_rps": 30.0,
-   "tilt_at_1s_deg": 10.129,
-   "tilt_at_2s_deg": 15.482,
-   "max_right_m": 51.54,
-   "lateral_m": 51.54,
-   "distance_m": 121.14,
-   "flight_time_s": 8.82
+   "tilt_at_1s_deg": 20.467,
+   "tilt_at_2s_deg": 32.455,
+   "max_right_m": 24.71,
+   "lateral_m": 24.71,
+   "distance_m": 78.78,
+   "flight_time_s": 4.33
   },
   {
    "spin_rps": 35.0,
-   "tilt_at_1s_deg": 8.677,
-   "tilt_at_2s_deg": 13.208,
-   "max_right_m": 47.28,
-   "lateral_m": 47.28,
-   "distance_m": 126.74,
-   "flight_time_s": 9.81
+   "tilt_at_1s_deg": 17.505,
+   "tilt_at_2s_deg": 27.457,
+   "max_right_m": 29.6,
+   "lateral_m": 29.6,
+   "distance_m": 85.6,
+   "flight_time_s": 4.93
   }
  ],
  "putter_speed_sweep": [
   {
    "speed_mps": 13.0,
-   "distance_m": 20.91,
-   "lateral_m": -1.7,
-   "flight_time_s": 1.98
+   "distance_m": 20.02,
+   "lateral_m": -2.67,
+   "flight_time_s": 1.93
   },
   {
    "speed_mps": 15.0,
-   "distance_m": 28.97,
-   "lateral_m": -2.68,
-   "flight_time_s": 2.52
+   "distance_m": 27.27,
+   "lateral_m": -3.94,
+   "flight_time_s": 2.4
   },
   {
    "speed_mps": 17.0,
-   "distance_m": 38.38,
-   "lateral_m": -3.78,
-   "flight_time_s": 3.16
+   "distance_m": 35.77,
+   "lateral_m": -5.32,
+   "flight_time_s": 2.97
   },
   {
    "speed_mps": 18.0,
-   "distance_m": 43.43,
-   "lateral_m": -4.28,
-   "flight_time_s": 3.5
+   "distance_m": 40.37,
+   "lateral_m": -5.95,
+   "flight_time_s": 3.29
   },
   {
    "speed_mps": 20.0,
-   "distance_m": 53.85,
-   "lateral_m": -5.1,
-   "flight_time_s": 4.2
+   "distance_m": 49.91,
+   "lateral_m": -6.92,
+   "flight_time_s": 3.93
+  },
+  {
+   "speed_mps": 22.0,
+   "distance_m": 59.6,
+   "lateral_m": -7.42,
+   "flight_time_s": 4.58
   }
  ]
 }

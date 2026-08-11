@@ -172,7 +172,13 @@ DAMPING_PROVENANCE = {
         "RECALIBRATED. Hummel's published -3.41e-5 was fitted to a spin moment "
         "written without the A*d scaling. Under the CONTRACT §4 form "
         "M_spin = q*A*d*c_nr*(spin*d/2V) it gives ~0.2% spin loss over a drive; "
-        "the observed figure is 10-20%. This value reproduces ~15%."
+        "the observed figure is 10-20%. This value gives 11.7% over the "
+        "CONTRACT §5 distance drive, and an initial decay rate of 2.8%/s at "
+        "27 m/s / 157 rad/s -- which independently matches a turbulent "
+        "skin-friction estimate over both disc faces (C_f ~ 0.005 gives "
+        "2.4%/s). Re-checked after the §4 v2 precession correction shortened "
+        "flight times; kept unchanged, because the first-principles estimate "
+        "constrains it better than the round 15% figure does."
     ),
     "c_nr_hummel_2003_raw": -3.41e-5,
     "spin_moment_form": "M_spin = 0.5*rho*V^2*A*d * c_nr * (spin*d/(2*V))",

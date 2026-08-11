@@ -1,0 +1,247 @@
+{
+ "disc": "destroyer",
+ "speed_mps": 27.0,
+ "spin_rps": 25.0,
+ "rows": [
+  {
+   "launch_deg": 11.0,
+   "hyzer_deg": 8.0,
+   "distance_m": 80.1,
+   "lateral_m": 22.3,
+   "max_right_m": 22.3,
+   "max_height_m": 8.5,
+   "flight_time_s": 4.4,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 11.0,
+   "hyzer_deg": 12.0,
+   "distance_m": 87.0,
+   "lateral_m": 25.2,
+   "max_right_m": 25.2,
+   "max_height_m": 9.0,
+   "flight_time_s": 5.0,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 11.0,
+   "hyzer_deg": 16.0,
+   "distance_m": 99.3,
+   "lateral_m": 30.9,
+   "max_right_m": 30.9,
+   "max_height_m": 9.4,
+   "flight_time_s": 6.07,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 11.0,
+   "hyzer_deg": 20.0,
+   "distance_m": 121.0,
+   "lateral_m": 31.9,
+   "max_right_m": 31.9,
+   "max_height_m": 9.7,
+   "flight_time_s": 8.06,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 11.0,
+   "hyzer_deg": 22.0,
+   "distance_m": 121.8,
+   "lateral_m": 19.4,
+   "max_right_m": 20.1,
+   "max_height_m": 9.8,
+   "flight_time_s": 8.29,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 11.0,
+   "hyzer_deg": 26.0,
+   "distance_m": 117.4,
+   "lateral_m": -0.9,
+   "max_right_m": 5.8,
+   "max_height_m": 9.8,
+   "flight_time_s": 8.2,
+   "meets_contract_5": true
+  },
+  {
+   "launch_deg": 12.0,
+   "hyzer_deg": 8.0,
+   "distance_m": 81.6,
+   "lateral_m": 24.6,
+   "max_right_m": 24.6,
+   "max_height_m": 9.3,
+   "flight_time_s": 4.62,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 12.0,
+   "hyzer_deg": 12.0,
+   "distance_m": 90.3,
+   "lateral_m": 29.3,
+   "max_right_m": 29.3,
+   "max_height_m": 9.9,
+   "flight_time_s": 5.4,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 12.0,
+   "hyzer_deg": 16.0,
+   "distance_m": 108.5,
+   "lateral_m": 38.1,
+   "max_right_m": 38.1,
+   "max_height_m": 10.3,
+   "flight_time_s": 7.04,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 12.0,
+   "hyzer_deg": 20.0,
+   "distance_m": 120.5,
+   "lateral_m": 22.0,
+   "max_right_m": 22.9,
+   "max_height_m": 10.7,
+   "flight_time_s": 8.38,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 12.0,
+   "hyzer_deg": 22.0,
+   "distance_m": 117.4,
+   "lateral_m": 9.5,
+   "max_right_m": 13.8,
+   "max_height_m": 10.8,
+   "flight_time_s": 8.35,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 12.0,
+   "hyzer_deg": 26.0,
+   "distance_m": 111.7,
+   "lateral_m": -7.7,
+   "max_right_m": 2.7,
+   "max_height_m": 10.9,
+   "flight_time_s": 8.13,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 13.0,
+   "hyzer_deg": 8.0,
+   "distance_m": 83.4,
+   "lateral_m": 27.4,
+   "max_right_m": 27.4,
+   "max_height_m": 10.1,
+   "flight_time_s": 4.87,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 13.0,
+   "hyzer_deg": 12.0,
+   "distance_m": 94.6,
+   "lateral_m": 34.4,
+   "max_right_m": 34.4,
+   "max_height_m": 10.7,
+   "flight_time_s": 5.91,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 13.0,
+   "hyzer_deg": 16.0,
+   "distance_m": 118.9,
+   "lateral_m": 41.6,
+   "max_right_m": 41.6,
+   "max_height_m": 11.2,
+   "flight_time_s": 8.17,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 13.0,
+   "hyzer_deg": 20.0,
+   "distance_m": 115.7,
+   "lateral_m": 12.3,
+   "max_right_m": 16.6,
+   "max_height_m": 11.7,
+   "flight_time_s": 8.42,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 13.0,
+   "hyzer_deg": 22.0,
+   "distance_m": 111.7,
+   "lateral_m": 1.6,
+   "max_right_m": 9.7,
+   "max_height_m": 11.9,
+   "flight_time_s": 8.29,
+   "meets_contract_5": true
+  },
+  {
+   "launch_deg": 13.0,
+   "hyzer_deg": 26.0,
+   "distance_m": 106.2,
+   "lateral_m": -12.8,
+   "max_right_m": 0.6,
+   "max_height_m": 12.0,
+   "flight_time_s": 8.02,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 14.0,
+   "hyzer_deg": 8.0,
+   "distance_m": 85.6,
+   "lateral_m": 30.7,
+   "max_right_m": 30.7,
+   "max_height_m": 10.9,
+   "flight_time_s": 5.17,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 14.0,
+   "hyzer_deg": 12.0,
+   "distance_m": 100.8,
+   "lateral_m": 40.9,
+   "max_right_m": 40.9,
+   "max_height_m": 11.6,
+   "flight_time_s": 6.6,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 14.0,
+   "hyzer_deg": 16.0,
+   "distance_m": 119.0,
+   "lateral_m": 32.5,
+   "max_right_m": 32.6,
+   "max_height_m": 12.2,
+   "flight_time_s": 8.5,
+   "meets_contract_5": false
+  },
+  {
+   "launch_deg": 14.0,
+   "hyzer_deg": 20.0,
+   "distance_m": 109.9,
+   "lateral_m": 4.6,
+   "max_right_m": 12.4,
+   "max_height_m": 12.7,
+   "flight_time_s": 8.35,
+   "meets_contract_5": true
+  },
+  {
+   "launch_deg": 14.0,
+   "hyzer_deg": 22.0,
+   "distance_m": 105.8,
+   "lateral_m": -4.3,
+   "max_right_m": 6.8,
+   "max_height_m": 12.9,
+   "flight_time_s": 8.19,
+   "meets_contract_5": true
+  },
+  {
+   "launch_deg": 14.0,
+   "hyzer_deg": 26.0,
+   "distance_m": 100.9,
+   "lateral_m": -16.6,
+   "max_right_m": 0.0,
+   "max_height_m": 13.1,
+   "flight_time_s": 7.91,
+   "meets_contract_5": false
+  }
+ ]
+}

@@ -9,7 +9,7 @@ pip install -r tools/requirements.txt
 python -m tools.aero.fetch_reference_data     # refresh the cached reference data
 python -m tools.aero.bake                     # -> game/data/aero/*.json + discs.json
 python -m tools.aero.validate --dump          # -> tools/aero/validation/*.json
-python -m pytest tools/aero                   # the test suite
+python -m pytest tools/aero                   # 112 tests
 ```
 
 Dependencies are numpy, scipy and pytest, pinned in `tools/requirements.txt`.
@@ -67,16 +67,30 @@ oracle Track B's GDScript is diffed against. `--dump` writes named throws with
 per-sample position, velocity, disc normal, quaternion, spin, α and the three
 coefficients actually used, at 20 Hz.
 
-Two known upstream bugs are avoided, and both are called out in the code:
+Precession follows CONTRACT §4 **v2**:
 
-* Hummel's published MATLAB drops the `A·d` factor from the spin-down moment.
-  We include it — and, because her fitted `CNr` was calibrated to the unscaled
-  form, we recalibrate the coefficient rather than shipping a number that would
-  give 0.2% spin loss where 10–20% is observed. See `game/data/README.md`.
-* `shotshaper`'s precession law `−M/(ω(I_xy − I_z))` is off by a factor of ~2
-  for a flat disc. We use the Euler-derived `−M/(I_zz·ω)` that CONTRACT §4
-  mandates — and report, rather than hide, that their version matches their
-  measured throws better than ours does.
+```
+dn/dt = −M_perp / ((I_zz − I_xy) · spin)
+```
+
+Note the denominator. `I_xy ≈ I_zz/2` for a flat disc, so this is twice the
+naive gyroscopic rate `−M/(I_zz·ω)` that v1 of the contract mandated and this
+module originally implemented. The factor matters enormously — halved precession
+means halved fade, and the symptom was 9.4 s flight times for drives that should
+fly ~6 s. `shotshaper` had it right all along. The axial equation is unaffected:
+spin-down still divides by `I_zz`.
+
+One known upstream bug is avoided: Hummel's published MATLAB drops the `A·d`
+factor from the spin-down moment. We include it — and, because her fitted `CNr`
+was calibrated to the unscaled form, we recalibrate the coefficient rather than
+ship a number that would give 0.2% spin loss where 10–20% is observed. See
+`game/data/README.md`.
+
+No spin-induced roll moment (`CRr`) is modelled. The CFD is steady-state RANS on
+a *non-rotating* disc, so the source data cannot contain one; transplanting
+Hummel's Ultimate-disc value was tried and rejected because it produces a moment
+2.25× the pitching moment and no survivable flight in either sign. The numbers
+are in `game/data/README.md`.
 
 ## Provenance discipline
 
@@ -133,9 +147,11 @@ a number should be read.
   **Track C must lathe the cross-section with this convention**; see
   `DiscGeometry.cross_section`, which returns the exact profile to sweep.
 
-* **`hyzer_angle_rad` sign** — CONTRACT §4 annotates it "+ = hyzer (right edge
-  down for RHBH)", which contradicts §5, where a right bank is what makes the
-  disc *turn right*. Hyzer is the fade direction. `validate.py` implements §5:
-  positive `hyzer_angle_rad` banks the disc **left** for a RHBH throw, so a
-  hyzer release finishes left. **Track B should match this** or the validation
-  fixtures will not line up.
+* **`hyzer_angle_rad` sign** — positive banks the disc **left** for a RHBH throw,
+  so a hyzer release finishes left. CONTRACT §4 v2 confirms this; v1's
+  parenthetical said the opposite and has been corrected. **Track B must match**
+  or the validation fixtures will not line up.
+
+* **The fixtures in `tools/aero/validation/` were regenerated for §4 v2.**
+  Anything compared against the v1 dump is stale by roughly a factor of two in
+  fade.
