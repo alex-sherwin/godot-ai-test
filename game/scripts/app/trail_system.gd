@@ -19,7 +19,7 @@ extends Node3D
 ## are on screen.
 
 const MAX_GHOSTS := 8
-const MIN_POINT_SPACING := 0.25   ## m; the sim samples far finer than we need
+const MIN_POINT_SPACING := 0.40   ## m; the sim samples far finer than we need
 const SHADOW_Y := 0.05
 const TRAIL_WIDTH := 0.26
 const SHADOW_WIDTH := 0.20
@@ -54,8 +54,8 @@ var _shadow_mat: ShaderMaterial = null
 func _ready() -> void:
 	# The ribbon shader treats model space as world space.
 	transform = Transform3D.IDENTITY
-	_trail_mat = RibbonBuilder.make_material(TRAIL_WIDTH, 0.0024, 1.0)
-	_shadow_mat = RibbonBuilder.make_material(SHADOW_WIDTH, 0.0016, 1.0)
+	_trail_mat = RibbonBuilder.make_material(TRAIL_WIDTH, 0.0024, 1.0, 4.0, 20.0)
+	_shadow_mat = RibbonBuilder.make_material(SHADOW_WIDTH, 0.0016, 1.0, 3.0, 14.0)
 
 	_live_mesh = MeshInstance3D.new()
 	_live_mesh.name = "LiveTrail"

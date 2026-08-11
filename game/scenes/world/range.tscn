@@ -7,8 +7,8 @@
 ; RENDERER: GL Compatibility (WebGL2). No SDFGI, no SSAO/SSIL, no SSR, no
 ; volumetric fog and no glow — none of them exist in Compatibility, and a
 ; Forward+ setting exports without warning and then does nothing in a browser.
-; Sky background, sky ambient, filmic tonemap and non-volumetric fog are all
-; supported and are what this uses.
+; Sky background, colour ambient, filmic tonemap, PSSM directional shadows and
+; non-volumetric depth fog are all supported and are what this uses.
 
 [ext_resource type="Script" path="res://scripts/app/range_world.gd" id="1_range"]
 
@@ -28,10 +28,11 @@ sky_material = SubResource("SkyMat")
 [sub_resource type="Environment" id="Env"]
 background_mode = 2
 sky = SubResource("Sky")
-ambient_light_source = 3
-ambient_light_color = Color(0.6, 0.694, 0.812, 1)
-ambient_light_sky_contribution = 1.0
-ambient_light_energy = 0.85
+; Ambient from a fixed colour rather than the sky: sky ambient in Compatibility
+; drags a strong blue cast across 200 m of grass and turns it teal.
+ambient_light_source = 2
+ambient_light_color = Color(0.639, 0.663, 0.671, 1)
+ambient_light_energy = 0.6
 reflected_light_source = 2
 tonemap_mode = 2
 tonemap_exposure = 1.05
@@ -41,7 +42,7 @@ fog_mode = 0
 fog_light_color = Color(0.702, 0.769, 0.847, 1)
 fog_light_energy = 1.0
 fog_sun_scatter = 0.08
-fog_density = 0.0008
+fog_density = 0.00065
 fog_aerial_perspective = 0.0
 fog_sky_affect = 0.3
 fog_height = 40.0

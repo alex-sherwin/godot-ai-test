@@ -208,17 +208,31 @@ func _apply_disc(d: DiscDefinition) -> void:
 ## integrator uses are rebuilt from the same dictionary, which is the whole
 ## point of the parameterisation: there is no separate "aero shape".
 ##
-## Honesty note: area and inertia genuinely follow the edit. The CL/CD/CM table
-## does NOT — mapping geometry onto coefficients is Track A's offline fit and
-## cannot be redone at 60 Hz, so a slider drag changes the mesh, the reference
-## area and the moments, not the measured coefficients. The status line says so.
+## The reference area and both moments of inertia are re-integrated from the
+## edited cross-section by the same Green's-theorem pass that reproduces Track
+## A's published `I_zz`/`I_xy` to better than 0.1% — so a slider drag moves the
+## numbers the integrator uses, not just the silhouette. This is preferred over
+## DiscDefinition's own coarse `k * m * r^2` fallback precisely because it agrees
+## with Track A's offline integration.
+##
+## Honesty note: the CL/CD/CM table does NOT follow the edit. Mapping geometry
+## onto coefficients is Track A's offline fit and cannot be redone at 60 Hz, so
+## a drag changes the mesh, the reference area and the moments while the
+## coefficients stay as shipped.
 func apply_geometry(geometry: Dictionary) -> void:
 	if disc == null or geometry.is_empty():
 		return
 	for k in DiscMeshBuilder.GEOMETRY_KEYS:
 		if geometry.has(k):
 			disc.set(k, float(geometry[k]))
-	if disc.has_method("_recompute_derived"):
+	var mass_props := DiscMeshBuilder.integrate_inertia(
+		DiscMeshBuilder.geometry_from(disc), 120)
+	if float(mass_props["volume_m3"]) > 1e-9:
+		disc.area_m2 = float(mass_props["area_m2"])
+		disc.i_zz = float(mass_props["i_zz"])
+		disc.i_xy = float(mass_props["i_xy"])
+		disc.parting_ratio = float(mass_props["parting_ratio"])
+	elif disc.has_method("_recompute_derived"):
 		disc._recompute_derived()
 	sim.configure(disc, env)
 	_rebuild_disc_mesh(DiscMeshBuilder.geometry_from(disc))
@@ -374,8 +388,9 @@ func _physics_process(delta: float) -> void:
 	_trails.set_disc_altitude(st.position)
 	_rig.track(st.position, st.velocity, true)
 	_update_vectors(st, diag)
-	_hud.push_alpha(st.time, rad_to_deg(alpha))
-	_update_telemetry(st, diag)
+	if _hud.is_enabled():
+		_hud.push_alpha(st.time, rad_to_deg(alpha))
+		_update_telemetry(st, diag)
 	_call_panel("set_live_state", [st, rad_to_deg(alpha)])
 
 	if not sim.is_flying():
@@ -470,6 +485,10 @@ func _land(st: DiscFlightSim.DiscState) -> void:
 	_last_result = r
 
 	_trails.end_flight(r.distance_m, r.lateral_m, st.position)
+	# The legend is only refreshed from the live-telemetry path, which stops
+	# with the flight; the new ghost has to be pushed explicitly.
+	if _hud.is_enabled():
+		_update_legend_only()
 	_vectors.hide_all()
 	# Let it lie flat on the ground rather than half-buried: the mesh origin is
 	# the parting line, which sits above the resting plane.
@@ -581,13 +600,10 @@ func _setup_ui() -> void:
 		roster.append(_disc_entry(library.get_index(i)))
 	_call_panel("set_disc_roster", [roster])
 	_call_panel("set_active_disc", [_disc_entry(disc)])
-	_hud.set_compact(true)
-	# Keep our own readouts out of Track D's way. Deferred, because their drawer
-	# has not been laid out yet on the frame it is instantiated.
-	var t := get_tree().create_timer(0.6)
-	t.timeout.connect(func() -> void:
-		if is_instance_valid(_panel):
-			_hud.place_opposite(_panel as Node))
+	# Track D owns the instrument display. Our overlay exists only for the
+	# standalone case; running both would put two live telemetry panels on the
+	# same screen, so it is switched off entirely rather than shuffled sideways.
+	_hud.set_enabled(false)
 
 
 func _connect_panel(sig: String, cb: Callable) -> void:

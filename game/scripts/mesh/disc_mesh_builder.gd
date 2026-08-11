@@ -104,8 +104,11 @@ const MAX_PLATE_M := 0.010
 ## Junction tangent change beyond which the profile creases instead of smoothing.
 const CREASE_RAD := 0.70  # ~40 degrees
 
-## Default tessellation. 64 x ~40 is the budget the designer sliders rebuild at.
-const DEFAULT_RADIAL_SEGMENTS := 64
+## Default tessellation, and the budget the designer sliders rebuild at. 48
+## radial segments is 7.5 degrees per facet — indistinguishable from smooth on a
+## 21 cm object — and keeps the rebuild comfortably inside a frame even in the
+## single-threaded wasm build.
+const DEFAULT_RADIAL_SEGMENTS := 48
 const DEFAULT_PROFILE_SAMPLES := 40
 
 # Surface indices of the returned ArrayMesh.

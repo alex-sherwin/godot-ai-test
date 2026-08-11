@@ -18,6 +18,10 @@ extends Node3D
 ## on a positive-spin throw, the sign convention has inverted somewhere.
 
 const WEIGHT_LENGTH := 1.6      ## metres drawn per (mass * g) newtons
+## Arrows start this far out from the disc centre so the disc is not buried
+## under five overlapping shafts. The TIP still lands at exactly
+## `origin + dir * length`, so the magnitude a tip encodes is unchanged.
+const ORIGIN_GAP := 0.20
 const MAX_LENGTH := 7.0
 const SPIN_LENGTH := 1.5
 const VELOCITY_SCALE := 0.11    ## metres per m/s
@@ -87,12 +91,17 @@ func _place(key: String, origin: Vector3, vec: Vector3, label_text: String) -> v
 	var clipped: bool = length > MAX_LENGTH
 	if clipped:
 		length = MAX_LENGTH
+	if length <= ORIGIN_GAP * 1.6:
+		root.visible = false
+		return
+	var dir: Vector3 = vec.normalized()
 	root.visible = true
-	root.global_position = origin
-	root.quaternion = Quaternion(Vector3.UP, vec.normalized())
+	root.global_position = origin + dir * ORIGIN_GAP
+	root.quaternion = Quaternion(Vector3.UP, dir)
 
-	var head_len: float = clampf(length * 0.22, 0.10, 0.42)
-	var shaft_len: float = maxf(length - head_len, 0.02)
+	var drawn: float = length - ORIGIN_GAP
+	var head_len: float = clampf(drawn * 0.22, 0.10, 0.42)
+	var shaft_len: float = maxf(drawn - head_len, 0.02)
 	var shaft: MeshInstance3D = a["shaft"]
 	shaft.scale = Vector3(1.0, shaft_len, 1.0)
 	shaft.position = Vector3(0.0, shaft_len * 0.5, 0.0)
@@ -103,7 +112,7 @@ func _place(key: String, origin: Vector3, vec: Vector3, label_text: String) -> v
 	var label: Label3D = a["label"]
 	# Lift, drag and velocity often point within 30 degrees of each other, so a
 	# per-arrow stand-off keeps their billboarded text from stacking up.
-	label.position = Vector3(0.0, length + float(a["label_offset"]), 0.0)
+	label.position = Vector3(0.0, drawn + float(a["label_offset"]), 0.0)
 	label.text = label_text + (" (clipped)" if clipped else "")
 
 

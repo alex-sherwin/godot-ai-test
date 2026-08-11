@@ -25,7 +25,7 @@ extends Node3D
 const LANE_HALF_WIDTH := 22.0     ## mown lane half-width, m
 const GROUND_HALF := 320.0        ## ground plane half-extent, m
 const MARK_Y := 0.02              ## markings sit just above the lane
-const TREE_LINE_X := 47.0
+const TREE_LINE_X := 50.0
 
 @export var range_length_m: float = 200.0
 @export var tick_spacing_m: float = 10.0
@@ -217,6 +217,10 @@ func _build_labels() -> void:
 			_add_label("%d m" % int(round(d)),
 				Vector3(side * (lateral_extent_m + 1.6), 2.9, -d),
 				Color(1.0, 0.98, 0.90), 0.80)
+		# Billboarded text is 4 px tall from 130 m up, so the plan view gets the
+		# numbers painted on the ground instead — which is how a real measured
+		# range marks distance anyway.
+		_add_ground_numeral("%d" % int(round(d)), Vector3(-13.0, 0.03, -d + 2.5), 4.0)
 		d += label_spacing_m
 
 	# Lateral offset callouts, near enough to the tee to be read at release.
@@ -243,6 +247,25 @@ func _add_label(text: String, pos: Vector3, color: Color, height_m: float) -> vo
 	l.no_depth_test = false
 	l.fixed_size = false
 	l.double_sided = true
+	l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	add_child(l)
+	_labels.append(l)
+
+
+## Text lying flat on the range floor, reading downrange (-Z is up-screen in the
+## plan view, so the glyphs come out the right way up there).
+func _add_ground_numeral(text: String, pos: Vector3, height_m: float) -> void:
+	var l := Label3D.new()
+	l.text = text
+	l.position = pos
+	l.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	l.modulate = Color(0.94, 0.97, 1.0, 0.55)
+	l.outline_size = 0
+	l.font_size = 64
+	l.pixel_size = height_m / 64.0
+	l.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	l.double_sided = true
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	add_child(l)
 	_labels.append(l)
@@ -389,7 +412,7 @@ func _build_tree_line() -> void:
 	trunk_mesh.material = trunk_mat
 
 	var canopy_mat := StandardMaterial3D.new()
-	canopy_mat.albedo_color = Color(0.180, 0.290, 0.161)
+	canopy_mat.albedo_color = Color(0.145, 0.271, 0.145)
 	canopy_mat.roughness = 1.0
 	canopy_mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	canopy_mesh.material = canopy_mat
@@ -399,7 +422,7 @@ func _build_tree_line() -> void:
 	while z > -(range_length_m + 70.0):
 		for side in [-1.0, 1.0]:
 			var x: float = side * (TREE_LINE_X + rng.randf_range(0.0, 16.0))
-			var s: float = rng.randf_range(0.8, 1.5)
+			var s: float = rng.randf_range(0.75, 1.2)
 			var t := Transform3D(Basis.from_euler(Vector3(0.0, rng.randf_range(0.0, TAU), 0.0))
 				.scaled(Vector3(s, s, s)), Vector3(x, 0.0, z + rng.randf_range(-6.0, 6.0)))
 			transforms.append(t)
@@ -407,7 +430,7 @@ func _build_tree_line() -> void:
 	# Close the far end so the range reads as a bounded field.
 	var xb: float = -85.0
 	while xb <= 85.0:
-		var s2: float = rng.randf_range(0.9, 1.6)
+		var s2: float = rng.randf_range(0.85, 1.25)
 		transforms.append(Transform3D(
 			Basis.from_euler(Vector3(0.0, rng.randf_range(0.0, TAU), 0.0)).scaled(Vector3(s2, s2, s2)),
 			Vector3(xb + rng.randf_range(-6.0, 6.0), 0.0,

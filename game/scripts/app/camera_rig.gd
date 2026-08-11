@@ -74,9 +74,12 @@ func set_view(view: String) -> void:
 		return
 	if view == "free":
 		# Hand the orbit camera the pose it is inheriting so it does not jump.
-		_orbit_pivot = _look
-		var off: Vector3 = _pos - _look
-		_orbit_dist = maxf(off.length(), 6.0)
+		# When the disc is at rest, orbit the disc instead: someone reaching for
+		# free look after a throw wants to walk around the disc or the landing,
+		# not around whatever the previous view happened to be aimed at.
+		_orbit_pivot = _target if (not _flying and _target.length_squared() > 1.0) else _look
+		var off: Vector3 = _pos - _orbit_pivot
+		_orbit_dist = clampf(off.length(), 2.0, 200.0)
 		_orbit_yaw = atan2(off.x, off.z)
 		_orbit_pitch = clampf(asin(clampf(off.y / _orbit_dist, -1.0, 1.0)), -1.45, 1.45)
 	_view = view
@@ -136,10 +139,12 @@ func _pose_for(view: String) -> Dictionary:
 
 
 func _pose_tee() -> Dictionary:
+	# Pans to hold the disc, but only about a third as far as the disc actually
+	# goes: a camera that tracks 1:1 puts the disc dead centre and takes the
+	# range axis out of frame, which is the one thing this view exists to show.
 	var look := Vector3(0.0, 4.0, -55.0)
 	if _flying or _target.length_squared() > 1.0:
-		# Pan to hold the disc, but keep some downrange context in frame.
-		look = _target.lerp(Vector3(0.0, 3.0, -60.0), 0.35)
+		look = Vector3(_target.x * 0.35, maxf(_target.y * 0.45, 2.0), -55.0)
 	return {"pos": Vector3(0.0, 2.9, 13.0), "look": look, "up": Vector3.UP, "fov": 58.0}
 
 
@@ -180,12 +185,13 @@ func _pose_side() -> Dictionary:
 	var half: float = _frame_dist * 0.5 + 14.0
 	# Horizontal fov is the vertical one widened by the aspect ratio.
 	var aspect: float = _aspect()
-	var d: float = clampf(half / (tan(deg_to_rad(27.0)) * aspect), 45.0, 400.0)
+	# Held out past the tree line (|x| >= 50 m) so it never has to look through
+	# it, and lifted just enough that the sight line clears a ~13 m canopy —
+	# about 15 degrees, still low enough to read the height profile honestly.
+	var d: float = clampf(half / (tan(deg_to_rad(27.0)) * aspect), 60.0, 400.0)
 	var mid := Vector3(0.0, clampf(_frame_height * 0.45, 4.0, 40.0), -_frame_dist * 0.5 + 6.0)
-	# Elevated enough to clear the tree line, which stands at |x| ~ 46 m and is
-	# about 12 m tall: from d metres out the sight line is above the canopy.
 	return {
-		"pos": mid + Vector3(d, d * 0.26 + 6.0, 0.0),
+		"pos": mid + Vector3(d, d * 0.18 + 5.0, 0.0),
 		"look": mid,
 		"up": Vector3.UP,
 		"fov": 58.0,
@@ -198,7 +204,9 @@ func _pose_free() -> Dictionary:
 		sin(_orbit_pitch),
 		cos(_orbit_yaw) * cos(_orbit_pitch)) * _orbit_dist
 	var pos: Vector3 = _orbit_pivot + off
-	pos.y = maxf(pos.y, 0.8)
+	# Low enough to get right down on the disc; the mesh is 21 cm across and
+	# there is no point shipping a parametric lathe you cannot look at.
+	pos.y = maxf(pos.y, 0.12)
 	return {"pos": pos, "look": _orbit_pivot, "up": Vector3.UP, "fov": 60.0}
 
 
@@ -250,6 +258,17 @@ func _apply(pose: Dictionary, immediate: bool, delta: float = 0.0) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _view != "free":
 		return
+	# Keyboard zoom as well as the wheel: some embeddings swallow wheel events
+	# before they reach the canvas, and orbit without zoom is close to useless.
+	if event is InputEventKey and (event as InputEventKey).pressed:
+		match (event as InputEventKey).keycode:
+			KEY_EQUAL, KEY_KP_ADD:
+				_orbit_dist = clampf(_orbit_dist * 0.80, 0.35, 500.0)
+				get_viewport().set_input_as_handled()
+			KEY_MINUS, KEY_KP_SUBTRACT:
+				_orbit_dist = clampf(_orbit_dist * 1.25, 0.35, 500.0)
+				get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		match mb.button_index:
@@ -259,10 +278,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				_dragging = 2 if mb.pressed else 0
 			MOUSE_BUTTON_WHEEL_UP:
 				if mb.pressed:
-					_orbit_dist = clampf(_orbit_dist * 0.88, 3.0, 500.0)
+					_orbit_dist = clampf(_orbit_dist * 0.88, 0.35, 500.0)
 			MOUSE_BUTTON_WHEEL_DOWN:
 				if mb.pressed:
-					_orbit_dist = clampf(_orbit_dist * 1.14, 3.0, 500.0)
+					_orbit_dist = clampf(_orbit_dist * 1.14, 0.35, 500.0)
 	elif event is InputEventMouseMotion and _dragging != 0:
 		var mm := event as InputEventMouseMotion
 		if _dragging == 1:

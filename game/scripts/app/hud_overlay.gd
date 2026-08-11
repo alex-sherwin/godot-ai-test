@@ -1,18 +1,21 @@
 class_name HudOverlay
 extends Control
 
-## The 2D layer Track C owns: live telemetry, the angle-of-attack trace, the
-## ghost-trail legend, and — only when Track D's control panel is absent — a
-## minimal debug panel so the scene is independently testable.
+## STANDALONE FALLBACK ONLY.
 ##
-## Alpha gets its own strip chart because alpha is the whole story. CM(alpha)
-## changes sign somewhere around 5-10 degrees, and that sign change IS turn
-## becoming fade (CONTRACT §5). Watching alpha climb through the flight while
-## the trail bends the other way is the clearest available demonstration that
-## the model is doing physics rather than replaying a curve.
+## Track D owns the instrument display — status, live telemetry, the landing
+## summary and the recent-throws comparison. When their control panel is present
+## this whole overlay is switched off (`set_enabled(false)`) rather than
+## competing for a corner with a second, redundant readout.
 ##
-## The panel keeps to one corner and can be toggled with H, because Track D owns
-## the other side of the screen and its layout is not knowable from here.
+## What it draws when Track D is absent: the status line, live telemetry, an
+## angle-of-attack strip chart, the ghost-trail legend, and a minimal debug
+## panel with a throw button and camera/disc controls, so Track C's scene stands
+## up and is testable on its own.
+##
+## Alpha gets a strip chart because alpha is the whole story: CM(alpha) changes
+## sign somewhere around 5-10 degrees and that sign change IS turn becoming fade
+## (CONTRACT §5).
 
 const PAD := 12.0
 const ROW := 17.0
@@ -29,12 +32,7 @@ signal debug_view_requested(view: String)
 signal debug_disc_cycled(delta: int)
 
 var show_panel: bool = true
-## Compact mode: Track D's panel already shows the status line, the shortcut
-## hints and the live telemetry, so when it is present this drops to the two
-## things it does NOT provide — the angle-of-attack trace and the ghost-trail
-## legend — and moves clear of their chrome. Duplicated readouts on top of each
-## other are worse than no readouts.
-var compact: bool = false
+var _enabled: bool = true
 
 var _font: Font = null
 var _telemetry: Dictionary = {}
@@ -61,8 +59,15 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
-func set_compact(on: bool) -> void:
-	compact = on
+## Switched off wholesale when Track D's panel is present.
+func set_enabled(on: bool) -> void:
+	_enabled = on
+	visible = on
+	set_process(on)
+
+
+func is_enabled() -> bool:
+	return _enabled
 
 
 func set_status(text: String) -> void:
@@ -98,53 +103,17 @@ func toggle_panel() -> void:
 		_debug_panel.visible = show_panel
 
 
-## Track D's panel, if it exists, gets one side of the screen; we take the other.
-## Its root is a full-rect Control, so the side is decided from the largest
-## descendant that is NOT full width — the drawer — rather than from the root.
-func place_opposite(other: Node) -> void:
-	if other == null:
-		_prefer_right = true
-		return
-	var vw: float = get_viewport_rect().size.x
-	var best_area: float = 0.0
-	var best_centre: float = -1.0
-	for c in _all_controls(other):
-		var r: Rect2 = c.get_global_rect()
-		if not c.visible or r.size.x <= 0.0 or r.size.y <= 0.0:
-			continue
-		if r.size.x > vw * 0.7:
-			continue     # full-width container, tells us nothing
-		var area: float = r.size.x * r.size.y
-		if area > best_area:
-			best_area = area
-			best_centre = r.position.x + r.size.x * 0.5
-	if best_centre < 0.0:
-		return
-	_prefer_right = best_centre < vw * 0.5
-
-
-func _all_controls(root: Node, depth: int = 0) -> Array[Control]:
-	var out: Array[Control] = []
-	if depth > 4:
-		return out
-	for c in root.get_children():
-		if c is Control:
-			out.append(c as Control)
-		out.append_array(_all_controls(c, depth + 1))
-	return out
-
-
 # ---------------------------------------------------------------------------
 # Drawing
 # ---------------------------------------------------------------------------
 
 func _draw() -> void:
-	if _font == null:
+	if _font == null or not _enabled:
 		return
 	# Layout may not have resolved on the first frame; fall back to the viewport.
 	var vp: Vector2 = size if size.x > 1.0 else get_viewport_rect().size
 	# Always-visible one-liner: status across the top-centre.
-	if not _status.is_empty() and not compact:
+	if not _status.is_empty():
 		var w: float = minf(_font.get_string_size(_status, HORIZONTAL_ALIGNMENT_LEFT,
 			-1, 15).x, vp.x - 60.0)
 		# y = 46 clears the "Back to overview" pill the export preset injects.
@@ -152,7 +121,7 @@ func _draw() -> void:
 		_panel_bg(Rect2(sx - 10.0, 46.0, w + 20.0, 26.0))
 		draw_string(_font, Vector2(sx, 64.0), _status,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.85, 0.92, 1.0), w)
-	if not _hint.is_empty() and not compact:
+	if not _hint.is_empty():
 		var hw: float = _font.get_string_size(_hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
 		draw_string(_font, Vector2(vp.x * 0.5 - hw * 0.5, vp.y - 10.0), _hint,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.62, 0.70, 0.80, 0.85))
@@ -160,16 +129,15 @@ func _draw() -> void:
 		return
 
 	var panel_w: float = CHART_W + PAD * 2.0
-	var rows: int = 0 if compact else _telemetry.size()
+	var rows: int = _telemetry.size()
 	var legend_h: float = 0.0 if _legend.is_empty() else (float(_legend.size()) * 20.0 + 24.0)
 	var panel_h: float = PAD * 2.0 + float(rows) * ROW + CHART_H + 26.0 + legend_h
 	var x: float = vp.x - panel_w - 14.0 if _prefer_right else 14.0
-	# Compact sits just below Track D's top strip; standalone sits at the bottom.
-	var y: float = 96.0 if compact else vp.y - panel_h - 34.0
+	var y: float = vp.y - panel_h - 34.0
 	_panel_bg(Rect2(x, y, panel_w, panel_h))
 
 	var cy: float = y + PAD + 13.0
-	for key in (_telemetry if not compact else {}):
+	for key in _telemetry:
 		draw_string(_font, Vector2(x + PAD, cy), str(key), HORIZONTAL_ALIGNMENT_LEFT,
 			-1, 12, Color(0.60, 0.68, 0.78))
 		var val := str(_telemetry[key])
