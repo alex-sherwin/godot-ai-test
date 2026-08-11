@@ -1,0 +1,843 @@
+{
+ "schema": 1,
+ "generated": "2026-08-11",
+ "generator": "tools/aero/bake.py",
+ "provenance_summary": {
+  "measured": [
+   "destroyer",
+   "firebird",
+   "roadrunner",
+   "teebird"
+  ],
+  "derived": [
+   "aviar",
+   "boss",
+   "buzzz",
+   "fd",
+   "leopard",
+   "river",
+   "roc",
+   "undertaker",
+   "wraith",
+   "zone"
+  ],
+  "measured_means": "CL/CD/CM come from CFD run on a scanned real disc (Giljarhus et al. 2022), resampled onto the shared grid and otherwise unmodified.",
+  "derived_means": "CL/CD/CM are a measured curve affine-mapped onto anchors predicted from this disc's geometry. The shape is measured; where the disc sits within that family is modelled.",
+  "regression_n": 4,
+  "caveats": [
+   "The turn and fade regressions have n = 4. R^2 = 0.89 / 0.91 on four points is not a validated model.",
+   "Glide is not recoverable from the measured data; the glide -> CL scaling is an unfitted heuristic (see game/data/README.md).",
+   "parting_line_m and rim_thickness_m are inferred from flight numbers, not measured. No manufacturer publishes them.",
+   "Damping coefficients are Ultimate-disc values (Hummel 2003); no disc-golf measurement exists."
+  ]
+ },
+ "discs": [
+  {
+   "id": "aviar",
+   "name": "Innova Aviar",
+   "manufacturer": "Innova Champion Discs",
+   "category": "putter",
+   "flight_numbers": {
+    "speed": 2,
+    "glide": 3,
+    "turn": 0,
+    "fade": 1
+   },
+   "geometry": {
+    "diameter_m": 0.212,
+    "mass_kg": 0.175,
+    "rim_width_m": 0.009,
+    "rim_depth_m": 0.015,
+    "rim_thickness_m": 0.002518,
+    "parting_line_m": 0.006915,
+    "dome_height_m": 0.0032,
+    "inner_rim_edge_m": 0.097
+   },
+   "derived": {
+    "area_m2": 0.0352989,
+    "parting_ratio": 0.461,
+    "nose_ratio": 0.1679,
+    "I_zz": 0.00107218,
+    "I_xy": 0.00054021,
+    "height_m": 0.02,
+    "density_kg_m3": 1127.7
+   },
+   "aero": "aviar",
+   "aero_provenance": "derived",
+   "aero_source": "derived:affine(fd2)",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "84-01",
+     "approved": "1984-01-01",
+     "max_weight_g": 176.0,
+     "diameter_cm": 21.2,
+     "height_cm": 2.0,
+     "rim_depth_cm": 1.5,
+     "rim_thickness_cm": 0.9,
+     "inside_rim_diameter_cm": 19.4
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 1.87
+  },
+  {
+   "id": "zone",
+   "name": "Discraft Zone",
+   "manufacturer": "Discraft",
+   "category": "approach",
+   "flight_numbers": {
+    "speed": 4,
+    "glide": 3,
+    "turn": 0,
+    "fade": 3
+   },
+   "geometry": {
+    "diameter_m": 0.211,
+    "mass_kg": 0.173,
+    "rim_width_m": 0.012,
+    "rim_depth_m": 0.013,
+    "rim_thickness_m": 0.005266,
+    "parting_line_m": 0.008129,
+    "dome_height_m": 0.0052,
+    "inner_rim_edge_m": 0.0935
+   },
+   "derived": {
+    "area_m2": 0.0349667,
+    "parting_ratio": 0.6253,
+    "nose_ratio": 0.4051,
+    "I_zz": 0.00101884,
+    "I_xy": 0.00051282,
+    "height_m": 0.02,
+    "density_kg_m3": 885.4
+   },
+   "aero": "zone",
+   "aero_provenance": "derived",
+   "aero_source": "derived:affine(fd2)",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "08-18",
+     "approved": "2008-05-28",
+     "max_weight_g": 175.1,
+     "diameter_cm": 21.1,
+     "height_cm": 2.0,
+     "rim_depth_cm": 1.3,
+     "rim_thickness_cm": 1.2,
+     "inside_rim_diameter_cm": 18.8
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 3.98
+  },
+  {
+   "id": "roc",
+   "name": "Innova Roc",
+   "manufacturer": "Innova Champion Discs",
+   "category": "midrange",
+   "flight_numbers": {
+    "speed": 4,
+    "glide": 4,
+    "turn": 0,
+    "fade": 3
+   },
+   "geometry": {
+    "diameter_m": 0.217,
+    "mass_kg": 0.18,
+    "rim_width_m": 0.012,
+    "rim_depth_m": 0.013,
+    "rim_thickness_m": 0.005266,
+    "parting_line_m": 0.008129,
+    "dome_height_m": 0.0052,
+    "inner_rim_edge_m": 0.0965
+   },
+   "derived": {
+    "area_m2": 0.0369836,
+    "parting_ratio": 0.6253,
+    "nose_ratio": 0.4051,
+    "I_zz": 0.00111783,
+    "I_xy": 0.00056243,
+    "height_m": 0.02,
+    "density_kg_m3": 875.2
+   },
+   "aero": "roc",
+   "aero_provenance": "derived",
+   "aero_source": "derived:affine(fd2)",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "87-05",
+     "approved": "1987-01-01",
+     "max_weight_g": 180.1,
+     "diameter_cm": 21.7,
+     "height_cm": 2.0,
+     "rim_depth_cm": 1.3,
+     "rim_thickness_cm": 1.2,
+     "inside_rim_diameter_cm": 19.3
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 3.98
+  },
+  {
+   "id": "buzzz",
+   "name": "Discraft Buzzz",
+   "manufacturer": "Discraft",
+   "category": "midrange",
+   "flight_numbers": {
+    "speed": 5,
+    "glide": 4,
+    "turn": -1,
+    "fade": 1
+   },
+   "geometry": {
+    "diameter_m": 0.217,
+    "mass_kg": 0.177,
+    "rim_width_m": 0.012,
+    "rim_depth_m": 0.013,
+    "rim_thickness_m": 0.003945,
+    "parting_line_m": 0.005336,
+    "dome_height_m": 0.0042,
+    "inner_rim_edge_m": 0.0965
+   },
+   "derived": {
+    "area_m2": 0.0369836,
+    "parting_ratio": 0.4104,
+    "nose_ratio": 0.3035,
+    "I_zz": 0.00111901,
+    "I_xy": 0.00056349,
+    "height_m": 0.019,
+    "density_kg_m3": 952.4
+   },
+   "aero": "buzzz",
+   "aero_provenance": "derived",
+   "aero_source": "derived:affine(fd2)",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "03-30",
+     "approved": "2003-09-30",
+     "max_weight_g": 180.1,
+     "diameter_cm": 21.7,
+     "height_cm": 1.9,
+     "rim_depth_cm": 1.3,
+     "rim_thickness_cm": 1.2,
+     "inside_rim_diameter_cm": 19.3
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 3.98
+  },
+  {
+   "id": "leopard",
+   "name": "Innova Leopard",
+   "manufacturer": "Innova Champion Discs",
+   "category": "fairway_driver",
+   "flight_numbers": {
+    "speed": 6,
+    "glide": 5,
+    "turn": -2,
+    "fade": 1
+   },
+   "geometry": {
+    "diameter_m": 0.212,
+    "mass_kg": 0.175,
+    "rim_width_m": 0.016,
+    "rim_depth_m": 0.011,
+    "rim_thickness_m": 0.006044,
+    "parting_line_m": 0.003959,
+    "dome_height_m": 0.0032,
+    "inner_rim_edge_m": 0.09
+   },
+   "derived": {
+    "area_m2": 0.0352989,
+    "parting_ratio": 0.3599,
+    "nose_ratio": 0.5494,
+    "I_zz": 0.00114406,
+    "I_xy": 0.00057541,
+    "height_m": 0.016,
+    "density_kg_m3": 981.4
+   },
+   "aero": "leopard",
+   "aero_provenance": "derived",
+   "aero_source": "derived:affine(cd5)",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "99-07",
+     "approved": "1999-05-12",
+     "max_weight_g": 176.0,
+     "diameter_cm": 21.2,
+     "height_cm": 1.6,
+     "rim_depth_cm": 1.1,
+     "rim_thickness_cm": 1.6,
+     "inside_rim_diameter_cm": 18.0
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 6.8
+  },
+  {
+   "id": "teebird",
+   "name": "Innova Teebird",
+   "manufacturer": "Innova Champion Discs",
+   "category": "fairway_driver",
+   "flight_numbers": {
+    "speed": 7,
+    "glide": 5,
+    "turn": 0,
+    "fade": 2
+   },
+   "geometry": {
+    "diameter_m": 0.212,
+    "mass_kg": 0.175,
+    "rim_width_m": 0.017,
+    "rim_depth_m": 0.011,
+    "rim_thickness_m": 0.006109,
+    "parting_line_m": 0.005975,
+    "dome_height_m": 0.0022,
+    "inner_rim_edge_m": 0.089
+   },
+   "derived": {
+    "area_m2": 0.0352989,
+    "parting_ratio": 0.5432,
+    "nose_ratio": 0.5553,
+    "I_zz": 0.00120073,
+    "I_xy": 0.00060297,
+    "height_m": 0.015,
+    "density_kg_m3": 1032.3
+   },
+   "aero": "teebird",
+   "aero_provenance": "measured",
+   "aero_source": "giljarhus2022:fd2",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "99-06",
+     "approved": "1999-05-03",
+     "max_weight_g": 176.0,
+     "diameter_cm": 21.2,
+     "height_cm": 1.5,
+     "rim_depth_cm": 1.1,
+     "rim_thickness_cm": 1.7,
+     "inside_rim_diameter_cm": 17.8
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 7.5,
+   "measured_link": {
+    "case": "fd2",
+    "confidence": "exact",
+    "note": "fd2.yaml header: 'Stable fairway driver, modelled after an Innova Teebird'"
+   }
+  },
+  {
+   "id": "fd",
+   "name": "Discmania FD",
+   "manufacturer": "Discmania",
+   "category": "fairway_driver",
+   "flight_numbers": {
+    "speed": 7,
+    "glide": 6,
+    "turn": -1,
+    "fade": 1
+   },
+   "geometry": {
+    "diameter_m": 0.212,
+    "mass_kg": 0.175,
+    "rim_width_m": 0.018,
+    "rim_depth_m": 0.011,
+    "rim_thickness_m": 0.005918,
+    "parting_line_m": 0.004515,
+    "dome_height_m": 0.0052,
+    "inner_rim_edge_m": 0.088
+   },
+   "derived": {
+    "area_m2": 0.0352989,
+    "parting_ratio": 0.4104,
+    "nose_ratio": 0.538,
+    "I_zz": 0.00106915,
+    "I_xy": 0.00053827,
+    "height_m": 0.018,
+    "density_kg_m3": 839.3
+   },
+   "aero": "fd",
+   "aero_provenance": "derived",
+   "aero_source": "derived:affine(fd2)",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "11-41",
+     "approved": "2011-11-13",
+     "max_weight_g": 176.0,
+     "diameter_cm": 21.2,
+     "height_cm": 1.8,
+     "rim_depth_cm": 1.1,
+     "rim_thickness_cm": 1.8,
+     "inside_rim_diameter_cm": 17.5
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 8.2
+  },
+  {
+   "id": "river",
+   "name": "Latitude 64 River",
+   "manufacturer": "Latitude 64",
+   "category": "fairway_driver",
+   "flight_numbers": {
+    "speed": 7,
+    "glide": 7,
+    "turn": -1,
+    "fade": 1
+   },
+   "geometry": {
+    "diameter_m": 0.215,
+    "mass_kg": 0.174,
+    "rim_width_m": 0.018,
+    "rim_depth_m": 0.012,
+    "rim_thickness_m": 0.005918,
+    "parting_line_m": 0.004925,
+    "dome_height_m": 0.0052,
+    "inner_rim_edge_m": 0.0895
+   },
+   "derived": {
+    "area_m2": 0.036305,
+    "parting_ratio": 0.4104,
+    "nose_ratio": 0.4931,
+    "I_zz": 0.00110439,
+    "I_xy": 0.00055635,
+    "height_m": 0.019,
+    "density_kg_m3": 794.2
+   },
+   "aero": "river",
+   "aero_provenance": "derived",
+   "aero_source": "derived:affine(fd2)",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "10-16",
+     "approved": "2010-06-02",
+     "max_weight_g": 178.5,
+     "diameter_cm": 21.5,
+     "height_cm": 1.9,
+     "rim_depth_cm": 1.2,
+     "rim_thickness_cm": 1.8,
+     "inside_rim_diameter_cm": 17.8
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 8.2
+  },
+  {
+   "id": "undertaker",
+   "name": "Discraft Undertaker",
+   "manufacturer": "Discraft",
+   "category": "control_driver",
+   "flight_numbers": {
+    "speed": 9,
+    "glide": 5,
+    "turn": -1,
+    "fade": 2
+   },
+   "geometry": {
+    "diameter_m": 0.211,
+    "mass_kg": 0.173,
+    "rim_width_m": 0.019,
+    "rim_depth_m": 0.011,
+    "rim_thickness_m": 0.007758,
+    "parting_line_m": 0.005419,
+    "dome_height_m": 0.0052,
+    "inner_rim_edge_m": 0.0865
+   },
+   "derived": {
+    "area_m2": 0.0349667,
+    "parting_ratio": 0.4926,
+    "nose_ratio": 0.7052,
+    "I_zz": 0.00108439,
+    "I_xy": 0.0005457,
+    "height_m": 0.018,
+    "density_kg_m3": 785.0
+   },
+   "aero": "undertaker",
+   "aero_provenance": "derived",
+   "aero_source": "derived:affine(fd2)",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "16-31",
+     "approved": "2016-04-06",
+     "max_weight_g": 175.1,
+     "diameter_cm": 21.1,
+     "height_cm": 1.8,
+     "rim_depth_cm": 1.1,
+     "rim_thickness_cm": 1.9,
+     "inside_rim_diameter_cm": 17.5
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 8.91
+  },
+  {
+   "id": "firebird",
+   "name": "Innova Firebird",
+   "manufacturer": "Innova Champion Discs",
+   "category": "control_driver",
+   "flight_numbers": {
+    "speed": 9,
+    "glide": 3,
+    "turn": 0,
+    "fade": 4
+   },
+   "geometry": {
+    "diameter_m": 0.211,
+    "mass_kg": 0.175,
+    "rim_width_m": 0.019,
+    "rim_depth_m": 0.012,
+    "rim_thickness_m": 0.00985,
+    "parting_line_m": 0.00849,
+    "dome_height_m": 0.0002,
+    "inner_rim_edge_m": 0.0865
+   },
+   "derived": {
+    "area_m2": 0.0349667,
+    "parting_ratio": 0.7075,
+    "nose_ratio": 0.8208,
+    "I_zz": 0.00136989,
+    "I_xy": 0.00068746,
+    "height_m": 0.014,
+    "density_kg_m3": 974.7
+   },
+   "aero": "firebird",
+   "aero_provenance": "measured",
+   "aero_source": "giljarhus2022:cd1",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "00-06",
+     "approved": "2000-03-21",
+     "max_weight_g": 175.1,
+     "diameter_cm": 21.1,
+     "height_cm": 1.4,
+     "rim_depth_cm": 1.2,
+     "rim_thickness_cm": 1.9,
+     "inside_rim_diameter_cm": 17.3
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 8.91,
+   "measured_link": {
+    "case": "cd1",
+    "confidence": "exact",
+    "note": "cd1.yaml header: 'Overstable control driver, modelled after an Innova Firebird'"
+   }
+  },
+  {
+   "id": "roadrunner",
+   "name": "Innova Roadrunner",
+   "manufacturer": "Innova Champion Discs",
+   "category": "control_driver",
+   "flight_numbers": {
+    "speed": 9,
+    "glide": 5,
+    "turn": -4,
+    "fade": 1
+   },
+   "geometry": {
+    "diameter_m": 0.211,
+    "mass_kg": 0.175,
+    "rim_width_m": 0.018,
+    "rim_depth_m": 0.012,
+    "rim_thickness_m": 0.008562,
+    "parting_line_m": 0.003105,
+    "dome_height_m": 0.0002,
+    "inner_rim_edge_m": 0.0875
+   },
+   "derived": {
+    "area_m2": 0.0349667,
+    "parting_ratio": 0.2587,
+    "nose_ratio": 0.7135,
+    "I_zz": 0.00135649,
+    "I_xy": 0.00068156,
+    "height_m": 0.014,
+    "density_kg_m3": 1048.3
+   },
+   "aero": "roadrunner",
+   "aero_provenance": "measured",
+   "aero_source": "giljarhus2022:cd5",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "05-16",
+     "approved": "2005-08-27",
+     "max_weight_g": 175.1,
+     "diameter_cm": 21.1,
+     "height_cm": 1.4,
+     "rim_depth_cm": 1.2,
+     "rim_thickness_cm": 1.8,
+     "inside_rim_diameter_cm": 17.5
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 8.2,
+   "measured_link": {
+    "case": "cd5",
+    "confidence": "exact",
+    "note": "cd5.yaml header: 'Understable control driver, modelled after an Innova Roadrunner'"
+   },
+   "geometry_warnings": [
+    "parting_line_m < half the rim wing thickness: the wing rests on the ground plane and the parting line sits low on a flat-bottomed wing (typical of very understable moulds)"
+   ]
+  },
+  {
+   "id": "wraith",
+   "name": "Innova Wraith",
+   "manufacturer": "Innova Champion Discs",
+   "category": "distance_driver",
+   "flight_numbers": {
+    "speed": 11,
+    "glide": 5,
+    "turn": -1,
+    "fade": 3
+   },
+   "geometry": {
+    "diameter_m": 0.211,
+    "mass_kg": 0.175,
+    "rim_width_m": 0.021,
+    "rim_depth_m": 0.012,
+    "rim_thickness_m": 0.010244,
+    "parting_line_m": 0.006897,
+    "dome_height_m": 0.0002,
+    "inner_rim_edge_m": 0.0845
+   },
+   "derived": {
+    "area_m2": 0.0349667,
+    "parting_ratio": 0.5748,
+    "nose_ratio": 0.8537,
+    "I_zz": 0.00136709,
+    "I_xy": 0.00068632,
+    "height_m": 0.014,
+    "density_kg_m3": 908.5
+   },
+   "aero": "wraith",
+   "aero_provenance": "derived",
+   "aero_source": "derived:affine(dd2)",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "05-15",
+     "approved": "2005-08-15",
+     "max_weight_g": 175.1,
+     "diameter_cm": 21.1,
+     "height_cm": 1.4,
+     "rim_depth_cm": 1.2,
+     "rim_thickness_cm": 2.1,
+     "inside_rim_diameter_cm": 16.9
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 10.31
+  },
+  {
+   "id": "destroyer",
+   "name": "Innova Destroyer",
+   "manufacturer": "Innova Champion Discs",
+   "category": "distance_driver",
+   "flight_numbers": {
+    "speed": 12,
+    "glide": 5,
+    "turn": -1,
+    "fade": 3
+   },
+   "geometry": {
+    "diameter_m": 0.211,
+    "mass_kg": 0.175,
+    "rim_width_m": 0.022,
+    "rim_depth_m": 0.012,
+    "rim_thickness_m": 0.010732,
+    "parting_line_m": 0.006897,
+    "dome_height_m": 0.0002,
+    "inner_rim_edge_m": 0.0835
+   },
+   "derived": {
+    "area_m2": 0.0349667,
+    "parting_ratio": 0.5748,
+    "nose_ratio": 0.8943,
+    "I_zz": 0.00136802,
+    "I_xy": 0.00068682,
+    "height_m": 0.014,
+    "density_kg_m3": 869.7
+   },
+   "aero": "destroyer",
+   "aero_provenance": "measured",
+   "aero_source": "giljarhus2022:dd2",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "07-38",
+     "approved": "2007-06-26",
+     "max_weight_g": 175.1,
+     "diameter_cm": 21.1,
+     "height_cm": 1.4,
+     "rim_depth_cm": 1.2,
+     "rim_thickness_cm": 2.2,
+     "inside_rim_diameter_cm": 16.7
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 11.02,
+   "measured_link": {
+    "case": "dd2",
+    "confidence": "class_match",
+    "note": "dd2.yaml names no mould. It is a 12/5/-1/3-class distance driver, which is the Destroyer's class, but the paper does not state that the scanned disc was a Destroyer. Treat the mapping as a class match, not an identification."
+   }
+  },
+  {
+   "id": "boss",
+   "name": "Innova Boss",
+   "manufacturer": "Innova Champion Discs",
+   "category": "distance_driver",
+   "flight_numbers": {
+    "speed": 13,
+    "glide": 5,
+    "turn": -1,
+    "fade": 2
+   },
+   "geometry": {
+    "diameter_m": 0.212,
+    "mass_kg": 0.175,
+    "rim_width_m": 0.025,
+    "rim_depth_m": 0.012,
+    "rim_thickness_m": 0.010207,
+    "parting_line_m": 0.005911,
+    "dome_height_m": 0.0012,
+    "inner_rim_edge_m": 0.081
+   },
+   "derived": {
+    "area_m2": 0.0352989,
+    "parting_ratio": 0.4926,
+    "nose_ratio": 0.8506,
+    "I_zz": 0.00131424,
+    "I_xy": 0.0006602,
+    "height_m": 0.015,
+    "density_kg_m3": 779.4
+   },
+   "aero": "boss",
+   "aero_provenance": "derived",
+   "aero_source": "derived:affine(dd2)",
+   "geometry_provenance": {
+    "diameter_m": "pdga_published",
+    "rim_width_m": "pdga_published",
+    "rim_depth_m": "pdga_published",
+    "inner_rim_edge_m": "pdga_published",
+    "dome_height_m": "derived_from_pdga_height",
+    "mass_kg": "estimated_typical_throwing_weight",
+    "parting_line_m": "inferred_from_flight_numbers",
+    "rim_thickness_m": "inferred_from_flight_numbers",
+    "_pdga_record": {
+     "certification": "08-28",
+     "approved": "2008-08-26",
+     "max_weight_g": 176.0,
+     "diameter_cm": 21.2,
+     "height_cm": 1.5,
+     "rim_depth_cm": 1.2,
+     "rim_thickness_cm": 2.5,
+     "inside_rim_diameter_cm": 16.2
+    },
+    "_pdga_source": "https://www.pdga.com/technical-standards/equipment-certification/discs"
+   },
+   "speed_predicted_from_rim_width": 13.12
+  }
+ ]
+}

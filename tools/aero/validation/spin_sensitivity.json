@@ -1,0 +1,84 @@
+{
+ "disc": "destroyer",
+ "speed_mps": 27.0,
+ "launch_angle_deg": 12.0,
+ "rows": [
+  {
+   "spin_rps": 15.0,
+   "tilt_at_1s_deg": 20.381,
+   "tilt_at_2s_deg": 32.309,
+   "max_right_m": 24.82,
+   "lateral_m": 24.82,
+   "distance_m": 78.94,
+   "flight_time_s": 4.34
+  },
+  {
+   "spin_rps": 20.0,
+   "tilt_at_1s_deg": 15.232,
+   "tilt_at_2s_deg": 23.69,
+   "max_right_m": 35.3,
+   "lateral_m": 35.3,
+   "distance_m": 93.4,
+   "flight_time_s": 5.65
+  },
+  {
+   "spin_rps": 25.0,
+   "tilt_at_1s_deg": 12.166,
+   "tilt_at_2s_deg": 18.716,
+   "max_right_m": 46.38,
+   "lateral_m": 46.38,
+   "distance_m": 108.68,
+   "flight_time_s": 7.28
+  },
+  {
+   "spin_rps": 30.0,
+   "tilt_at_1s_deg": 10.129,
+   "tilt_at_2s_deg": 15.482,
+   "max_right_m": 51.54,
+   "lateral_m": 51.54,
+   "distance_m": 121.14,
+   "flight_time_s": 8.82
+  },
+  {
+   "spin_rps": 35.0,
+   "tilt_at_1s_deg": 8.677,
+   "tilt_at_2s_deg": 13.208,
+   "max_right_m": 47.28,
+   "lateral_m": 47.28,
+   "distance_m": 126.74,
+   "flight_time_s": 9.81
+  }
+ ],
+ "putter_speed_sweep": [
+  {
+   "speed_mps": 13.0,
+   "distance_m": 20.91,
+   "lateral_m": -1.7,
+   "flight_time_s": 1.98
+  },
+  {
+   "speed_mps": 15.0,
+   "distance_m": 28.97,
+   "lateral_m": -2.68,
+   "flight_time_s": 2.52
+  },
+  {
+   "speed_mps": 17.0,
+   "distance_m": 38.38,
+   "lateral_m": -3.78,
+   "flight_time_s": 3.16
+  },
+  {
+   "speed_mps": 18.0,
+   "distance_m": 43.43,
+   "lateral_m": -4.28,
+   "flight_time_s": 3.5
+  },
+  {
+   "speed_mps": 20.0,
+   "distance_m": 53.85,
+   "lateral_m": -5.1,
+   "flight_time_s": 4.2
+  }
+ ]
+}

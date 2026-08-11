@@ -1,0 +1,6 @@
+# Offline aerodynamic pipeline (tools/aero). Python 3.11.
+# Deliberately minimal: numpy + scipy only at runtime, pytest for the test suite.
+# Reference-data fetching uses git / urllib from the standard library.
+numpy==2.4.6
+scipy==1.17.1
+pytest==9.1.1

@@ -1,0 +1,27 @@
+{
+ "fetched_utc": "2026-08-11T15:18:43+00:00",
+ "sources": [
+  {
+   "repo": "https://github.com/kegiljarhus/shotshaper",
+   "commit": "c99e7a511b48f1290e7d6e34676785d5830b8522",
+   "files": [
+    "shotshaper/discs/cd1.yaml",
+    "shotshaper/discs/fd2.yaml",
+    "shotshaper/discs/cd5.yaml",
+    "shotshaper/discs/dd2.yaml",
+    "LICENSE"
+   ],
+   "license": "GPL-3.0",
+   "used_for": "measured CL/CD/CM tables for four disc golf discs"
+  },
+  {
+   "repo": "https://github.com/grebtsew/Discgolf",
+   "commit": "a4bb9862a53cba09c2dc64596c5f96cbc72fac95",
+   "files": [
+    "Calculations/matlab_hummel_frisbee.m"
+   ],
+   "license": "not stated upstream; verbatim copy of a 2003 MSc thesis appendix",
+   "used_for": "damping coefficients CMq/CRp/CNr and the Potts & Crowther cross-check"
+  }
+ ]
+}

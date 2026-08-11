@@ -1,0 +1,58 @@
+{
+ "paper_throw": {
+  "note": "the throw in shotshaper's examples/disc_golf_throw.py",
+  "throw": {
+   "speed_mps": 24.2,
+   "spin_rps": 18.589297353133375,
+   "launch_angle_rad": 0.27052603405912107,
+   "hyzer_angle_rad": 0.2565634000431664,
+   "launch_height_m": 1.3
+  },
+  "shotshaper_published": {
+   "distance_m": 82.1,
+   "flight_time_s": 6.87,
+   "max_height_m": 11.5,
+   "lateral_m": -4.2
+  },
+  "ours_matched_precession": {
+   "distance_m": 81.69,
+   "flight_time_s": 6.73,
+   "max_height_m": 11.47,
+   "lateral_m": -3.54
+  },
+  "ours_euler_precession": {
+   "distance_m": 76.51,
+   "flight_time_s": 6.88,
+   "max_height_m": 12.14,
+   "lateral_m": -26.26
+  }
+ },
+ "flat_27": {
+  "note": "flat release, 27 m/s, 25 rev/s",
+  "throw": {
+   "speed_mps": 27.0,
+   "spin_rps": 25.0,
+   "launch_angle_rad": 0.20943951023931956,
+   "hyzer_angle_rad": 0.0,
+   "launch_height_m": 1.4
+  },
+  "shotshaper_published": {
+   "distance_m": 75.0,
+   "flight_time_s": 4.13,
+   "max_height_m": 8.9,
+   "lateral_m": 24.9
+  },
+  "ours_matched_precession": {
+   "distance_m": 72.11,
+   "flight_time_s": 3.75,
+   "max_height_m": 8.13,
+   "lateral_m": 20.03
+  },
+  "ours_euler_precession": {
+   "distance_m": 108.68,
+   "flight_time_s": 7.28,
+   "max_height_m": 10.37,
+   "lateral_m": 46.38
+  }
+ }
+}
