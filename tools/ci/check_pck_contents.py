@@ -1,16 +1,27 @@
 #!/usr/bin/env python3
 """Assert the exported ``.pck`` actually contains the program.
 
-This is the last link in the chain, and the strongest one: everything before it
-reasons about the *source tree*, while this reads the artefact that is about to
-be uploaded to Pages.
+This is the last link in the chain: everything before it reasons about the
+*source tree*, while this reads the artefact that is about to be uploaded to
+Pages. It catches the export dropping something — a preset filter that stops
+packing a directory, a resource the exporter silently skips.
 
-``godot --headless --export-release`` exits 0 with scripts missing. It writes a
-``.pck``, writes a ``.wasm``, and every size assertion passes — six deploys of
-this project went out that way with no physics core in the build, because
-GDScript resolves ``class_name`` at parse time and the failure only surfaces in
-a browser. So: open the pack, and check that every script, every scene and every
-data file the project ships has an entry in it.
+**What it does not catch, stated plainly so nobody relies on it for that.**
+This check enumerates what is on disk and looks for it in the pack, so if a
+script was never committed in the first place, it is not on disk in a clean
+checkout, it is not in the expected set, and this check passes. Measured, with
+``scripts/physics/atmosphere.gd`` deleted from a scratch tree:
+
+    godot --headless --export-release   -> exit 0, 39,513,091-byte wasm,
+                                          605,044-byte pck, all size
+                                          assertions pass
+    check_pck_contents.py               -> exit 0  (!)
+    check_scene_refs.py                 -> exit 1  (untracked / missing ref)
+    tests/check_resources.gd            -> exit 1  ("main.tscn root node has
+                                          no script attached")
+
+That is the six-green-deploys failure, and the two checks that catch it are the
+other two. The three are complementary; none of them is sufficient alone.
 
 The pack's file index stores paths relative to ``res://`` — ``data/discs.json``,
 not ``res://data/discs.json``. Scripts appear under the ``.gdc`` extension when

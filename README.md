@@ -265,16 +265,29 @@ PackedScene.instantiate()                 → a Node
 GDScript.reload()                         → 43  (ERR_PARSE_ERROR)   ← the only honest one
 ```
 
-`tests/check_resources.gd` gates on `reload()`. It was validated by deleting
-`atmosphere.gd` from a scratch copy of the tree: `load` and `instantiate` both
-reported success and the process exited 0, while the check reported four
-problems including *"main.tscn root node has no script attached"* and exited 1.
+`tests/check_resources.gd` gates on `reload()`. Every check below was validated
+by actually deleting `scripts/physics/atmosphere.gd` from a scratch copy of the
+tree and running the whole pipeline against it:
 
-Two more guards sit either side of it: `tools/ci/check_scene_refs.py` walks the
-transitive closure of `main.tscn` — through `.tscn` ext-resources, `res://`
-string literals **and `class_name` edges** — and requires every file to be
-tracked by git; and `tools/ci/check_pck_contents.py` opens the exported pack and
-checks that every script, scene and data file is actually in it.
+| step | result with the physics dependency deleted |
+| --- | --- |
+| `godot --export-release` | **exit 0**, 39,513,091-byte wasm, 605,044-byte pck |
+| "Assert export produced a usable build" | **passes** — everything is non-empty |
+| `check_pck_contents.py` | **exit 0** — see below |
+| `check_scene_refs.py` | exit 1 — untracked / missing reference |
+| `check_resources.gd` | exit 1 — *"main.tscn root node has no script attached"* |
+| `run_tests.gd` | exit 1 — the physics suites fail to compile |
+
+The three guards are complementary and **none is sufficient alone**.
+`tools/ci/check_scene_refs.py` walks the transitive closure of `main.tscn` —
+through `.tscn` ext-resources, `res://` string literals **and `class_name`
+edges** — and requires every file to exist and be tracked by git.
+`tests/check_resources.gd` compiles everything. `tools/ci/check_pck_contents.py`
+opens the exported pack and checks every script, scene and data file is in it —
+which catches the *export* dropping something, but explicitly **not** a file
+that was never committed, because such a file is not on disk in a clean
+checkout either and so is never in the expected set. That is the one it misses,
+and it is the historical one, which is why the other two exist.
 
 ### The runner used to hang, not fail
 
