@@ -176,8 +176,13 @@ func _build_overlays() -> void:
 	_hud = HudOverlay.new()
 	_hud.name = "Hud"
 	layer.add_child(_hud)
-	_hud.set_hint("SPACE throw   1-5 camera   V vectors   C clear trails   "
-		+ "[ ] disc   W wind   H panel")
+	# Generated from the binding table so the hint cannot advertise a key that
+	# is not bound. This HUD is the no-control-panel fallback, so it shows the
+	# STANDALONE set; `_setup_ui()` switches the whole overlay off when Track
+	# D's panel is present, and the panel prints its own hint from PANEL.
+	_hud.set_hint(KeyBindings.hint(KeyBindings.STANDALONE,
+		[KEY_SPACE, KEY_R, KEY_V, KEY_C, KEY_H, KEY_W], "   ")
+		+ "   1-5 camera   [ ] disc")
 
 
 func _default_disc_index() -> int:
@@ -287,15 +292,21 @@ func _disc_entry(d: DiscDefinition) -> Dictionary:
 # Throwing
 # ---------------------------------------------------------------------------
 
+## Fallback release, used only when Track D's panel is absent — with the panel
+## present its Throw tab owns the release and the demo throw goes through it.
+##
+## CONTRACT §5's first sanity target is a distance driver at ~27 m/s and
+## ~25 rev/s, which should fly 105-130 m with a visible right turn and a left
+## fade finish. It needs 22 deg of hyzer to do that in this model, not the 5 deg
+## that was here: the empirical PRECESSION_GAIN doubles the turn as well as the
+## fade, so a flat release on any disc rated turn -1 or lower turns over and
+## stays right. See ThrowPanel.CATEGORY_PROFILE and README.md.
 func _default_throw() -> void:
-	# CONTRACT §5's first sanity target: a distance driver at ~27 m/s and
-	# ~25 rev/s with a little hyzer, which should fly 105-130 m with a visible
-	# right turn and a left fade finish.
 	_throw.speed_mps = 27.0
 	_throw.spin_rps = 25.0
 	_throw.nose_angle_rad = 0.0
-	_throw.hyzer_angle_rad = deg_to_rad(5.0)
-	_throw.launch_angle_rad = deg_to_rad(10.0)
+	_throw.hyzer_angle_rad = deg_to_rad(22.0)
+	_throw.launch_angle_rad = deg_to_rad(13.0)
 	_throw.launch_height_m = 1.4
 	_throw.launch_heading_rad = 0.0
 
@@ -361,7 +372,12 @@ func _physics_process(delta: float) -> void:
 		_demo_timer -= delta
 		if _demo_timer <= 0.0:
 			_demo_timer = -1.0
-			throw()
+			# Ask the panel to throw rather than throwing with our own defaults.
+			# Two sets of release parameters on screen at once — the panel's
+			# sliders saying one thing and the opening demo flying another — is
+			# the sort of discrepancy that reads as a bug in the physics.
+			if not _call_panel("do_throw", []):
+				throw()
 	if not _flying:
 		return
 
@@ -615,10 +631,12 @@ func _connect_panel(sig: String, cb: Callable) -> void:
 	_panel.connect(sig, cb)
 
 
-func _call_panel(method: String, args: Array) -> void:
+## Returns whether the call actually happened, so a caller can fall back.
+func _call_panel(method: String, args: Array) -> bool:
 	if _panel == null or not _panel.has_method(method):
-		return
+		return false
 	_panel.callv(method, args)
+	return true
 
 
 func _on_throw_requested(params: Variant = null) -> void:
@@ -752,23 +770,20 @@ func _coerce_env(e: Variant) -> DiscFlightSim.FlightEnvironment:
 
 
 # ---------------------------------------------------------------------------
-# Keyboard. Always live, whichever panel is in charge.
+# Keyboard. Ownership lives in scripts/key_bindings.gd — nowhere else.
 # ---------------------------------------------------------------------------
 
-## Track D binds its own shortcuts (SPACE / R / C / V / T / H, digits for tabs)
-## and its panel is the authority on input when it exists, so these are only
-## live in the built-in debug mode. Two nodes racing for the same key means a
-## double throw or a toggle that cancels itself out.
+## Ownership of every key in the project is declared in
+## `scripts/key_bindings.gd`; see that file. The control panel is the authority
+## on input when it exists, so with a panel present only `KeyBindings.WORLD` is
+## live here and `KeyBindings.STANDALONE` is dead. Two nodes racing for the same
+## key means a double throw or a toggle that cancels itself out.
 func _unhandled_key_input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	if k == null or not k.pressed or k.echo:
 		return
-	if _panel != null:
-		# W is the one key Track D does not bind, and it is the only way to
-		# exercise the wind visualisation without their Env tab.
-		if k.keycode == KEY_W:
-			cycle_wind()
-			get_viewport().set_input_as_handled()
+	var table: Dictionary = KeyBindings.WORLD if _panel != null else KeyBindings.STANDALONE
+	if not table.has(k.keycode):
 		return
 	match k.keycode:
 		KEY_SPACE:

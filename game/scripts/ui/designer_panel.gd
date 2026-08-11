@@ -26,7 +26,7 @@ const PARAMS := {
 	"rim_depth_m": ["Rim depth", 8.0, 30.0, 0.1, " mm", 0.001,
 		"Depth of the rim cavity: how far the underside of the flight plate sits above the resting plane."],
 	"rim_thickness_m": ["Nose thickness", 1.0, 20.0, 0.1, " mm", 0.001,
-		"Axial thickness of the rim wing at the outer edge — how blunt the nose is. Published by nobody; inferred for every disc in the roster."],
+		"Axial thickness of the rim wing at the outer edge — how blunt the nose is. An absolute length, 3.5–8.0 mm across the roster, not a fraction of the rim width. Published by nobody; inferred for every disc from its flight numbers. The wing is not assumed symmetric about the parting line: where the parting line sits lower than half the nose, the wing rests on the ground plane and keeps its thickness."],
 	"parting_line_m": ["Parting line", 0.5, 30.0, 0.1, " mm", 0.001,
 		"Height of the widest point of the rim above the resting plane. Its ratio to rim depth dominates both turn and fade."],
 	"dome_height_m": ["Dome height", 0.0, 20.0, 0.1, " mm", 0.001,
@@ -144,7 +144,8 @@ func _init() -> void:
 		"Spin-axis moment of inertia, integrated over the solid of revolution. It sets how much the disc resists the aerodynamic torque: precession rate goes as 1/(I_zz·ω).")
 	_metrics["i_xy"] = UiKit.kv(grid, "I_xy", "—", "ValueLabel", "Transverse moment of inertia.")
 	_metrics["density"] = UiKit.kv(grid, "Implied plastic", "—", "ValueLabel",
-		"mass ÷ swept volume. Real disc plastics run 800–1400 kg/m³; outside that, the shape and the mass are not describing the same object.")
+		"mass ÷ swept volume. Real disc plastics run %.0f–%.0f kg/m³ (the shipped roster spans 826–1107); outside that, the shape and the mass are not describing the same object." % [
+			DiscGeometryCalc.PLASTIC_DENSITY_MIN, DiscGeometryCalc.PLASTIC_DENSITY_MAX])
 	_metrics["volume"] = UiKit.kv(grid, "Volume", "—", "ValueLabel", "Volume of the solid of revolution.")
 
 	# ---- flight numbers ---------------------------------------------

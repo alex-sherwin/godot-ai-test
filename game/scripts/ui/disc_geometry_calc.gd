@@ -16,10 +16,34 @@ extends RefCounted
 ## a constant here exactly as it is in Track A's module.
 const PLATE_THICKNESS_M := 0.0018
 
-## Radial stations for the quadrature. Track A uses 2001 for the baked data;
-## 401 is plenty for a live readout (the difference on I_zz is < 1e-4 relative)
-## and keeps a slider drag cheap.
-const N_RADIAL := 401
+## Implied uniform density a real mould can plausibly have. Mirrors Track A's
+## named constant `tools/aero/geometry.py::PLASTIC_DENSITY_RANGE`. Base
+## polypropylene/polyethylene blends run 870–950 kg/m³ and premium blends reach
+## ~1050; the band is widened either side because this is a *model* quantity,
+## sensitive to the assumed rim taper, not a material spec. The shipped roster
+## spans 826–1107. (This was 800–1400 before Track A's nose-thickness fix, which
+## is now wider than anything the pipeline will accept — a UI that accepts what
+## the pipeline rejects is worse than no check.)
+const PLASTIC_DENSITY_MIN := 800.0
+const PLASTIC_DENSITY_MAX := 1200.0
+
+## Radial stations for the quadrature. Must be Track A's `_N_RADIAL`, exactly.
+##
+## This used to be 401, with a comment claiming the difference against Track A's
+## 2001 was "< 1e-4 relative". It is not: measured over the shipped roster it is
+## 0.32% on I_zz and 0.62% on the implied density. The reason is that the
+## cross-section thickness is *discontinuous* at the shoulder — just inside
+## r = ri the section is the flight plate alone (~1.8 mm), just outside it is
+## the full rim (~12.8 mm) — and the trapezoid rule across a jump is O(h), not
+## O(h²). Halving the station count does not halve the error budget, it moves
+## the answer. So a coarser grid here does not produce Track A's number with a
+## little noise on it; it produces a different number, and the designer's live
+## readout would disagree with the value the integrator is actually using.
+##
+## The cost is a 2001-iteration float loop, re-run at most 20 times a second
+## while a slider is being dragged (`DesignerPanel.EMIT_INTERVAL`). That is
+## nothing, even in the single-threaded wasm build.
+const N_RADIAL := 2001
 
 const KEYS := [
 	"diameter_m", "mass_kg", "rim_width_m", "rim_depth_m",
@@ -63,6 +87,22 @@ static func sanitize(g: Dictionary) -> Dictionary:
 
 # ------------------------------------------------------------ cross-section ---
 
+## Height of the underside of the rim wing at the outer edge.
+##
+## The wing is NOT required to be centred on the parting line. On a very
+## understable mould the parting line sits low on a flat-bottomed wing, so the
+## wing is pushed up to rest on the ground plane and its *thickness is
+## preserved* — it is not truncated. This mirrors
+## `tools/aero/geometry.py::DiscGeometry.cross_section` exactly.
+##
+## The earlier version of this file clamped `z_lo` at zero instead, which
+## silently thickened the wing on any disc with `parting_line < thickness/2`.
+## In the shipped roster that is the Roadrunner, and it moved its integrated
+## volume — hence density, I_zz and I_xy — away from Track A's.
+static func wing_bottom(g: Dictionary) -> float:
+	var geo := sanitize(g)
+	return maxf(geo.parting_line_m - 0.5 * geo.rim_thickness_m, 0.0)
+
 ## Meridional profile as a closed outline in (radius, height) metres: out along
 ## the top surface from the spin axis to the outer edge, then back along the
 ## underside. Track C's `DiscMeshBuilder` lathes the same curve; when it is
@@ -73,8 +113,8 @@ static func outline(g: Dictionary, n: int = 121) -> PackedVector2Array:
 	var r_outer: float = geo.diameter_m * 0.5
 	var ri: float = clampf(geo.inner_rim_edge_m, 0.001, r_outer - 0.0005)
 	var rim_height: float = geo.rim_depth_m + PLATE_THICKNESS_M
-	var top_outer: float = geo.parting_line_m + 0.5 * geo.rim_thickness_m
-	var bot_outer: float = geo.parting_line_m - 0.5 * geo.rim_thickness_m
+	var bot_outer: float = wing_bottom(geo)
+	var top_outer: float = bot_outer + geo.rim_thickness_m
 
 	var top := PackedVector2Array()
 	var bottom := PackedVector2Array()
@@ -89,7 +129,7 @@ static func outline(g: Dictionary, n: int = 121) -> PackedVector2Array:
 		else:
 			var s: float = (r - ri) / maxf(r_outer - ri, 1e-9)
 			z_hi = rim_height + (top_outer - rim_height) * s
-			z_lo = maxf(bot_outer * s, 0.0)
+			z_lo = bot_outer * s
 		top.append(Vector2(r, z_hi))
 		bottom.append(Vector2(r, z_lo))
 
@@ -111,8 +151,8 @@ static func derived(g: Dictionary) -> Dictionary:
 	var r_outer: float = geo.diameter_m * 0.5
 	var ri: float = clampf(geo.inner_rim_edge_m, 0.001, r_outer - 0.0005)
 	var rim_height: float = geo.rim_depth_m + PLATE_THICKNESS_M
-	var top_outer: float = geo.parting_line_m + 0.5 * geo.rim_thickness_m
-	var bot_outer: float = geo.parting_line_m - 0.5 * geo.rim_thickness_m
+	var bot_outer: float = wing_bottom(geo)
+	var top_outer: float = bot_outer + geo.rim_thickness_m
 
 	var dr: float = r_outer / float(N_RADIAL - 1)
 	var volume := 0.0
@@ -135,7 +175,7 @@ static func derived(g: Dictionary) -> Dictionary:
 		else:
 			var s: float = (r - ri) / maxf(r_outer - ri, 1e-9)
 			z_hi = rim_height + (top_outer - rim_height) * s
-			z_lo = maxf(bot_outer * s, 0.0)
+			z_lo = bot_outer * s
 		var thickness: float = maxf(z_hi - z_lo, 0.0)
 		var two_pi_r: float = TAU * r
 		var dv: float = two_pi_r * thickness
@@ -206,10 +246,15 @@ static func check(g: Dictionary) -> Array:
 	var d: Dictionary = derived(geo)
 
 	# --- PDGA technical standards -------------------------------------
+	# Three moulds in the shipped roster — Roc and Buzzz at 21.7 cm, River at
+	# 21.5 — carry PDGA-published diameters above this band. Those are the real
+	# certification figures (see tools/aero/roster.py, "Honesty notes"), so the
+	# wording here says what is true of a NEW design rather than calling an
+	# approved disc illegal.
 	if geo.diameter_m < PDGA_DIAMETER_MIN - 1e-6 or geo.diameter_m > PDGA_DIAMETER_MAX + 1e-6:
 		issues.append({
-			"level": Level.WARN, "key": "diameter_m",
-			"text": "Diameter %.1f cm is outside the PDGA-approved 21.0–21.3 cm band." % (geo.diameter_m * 100.0),
+			"level": Level.WARN, "key": "diameter_m", "code": "diameter_band",
+			"text": "Diameter %.1f cm is outside the 21.0–21.3 cm band a new mould has to hit. Some certified moulds sit outside it — the Roc and Buzzz are 21.7 cm and the River 21.5 — so this is a note about approvability, not about physics." % (geo.diameter_m * 100.0),
 		})
 	if geo.rim_width_m > PDGA_RIM_WIDTH_MAX + 1e-6:
 		issues.append({
@@ -231,13 +276,25 @@ static func check(g: Dictionary) -> Array:
 			"text": "Parting line (%.1f mm) sits at or above the flight plate (%.1f mm). The widest point of a disc is inside the rim." % [
 				geo.parting_line_m * 1000.0, geo.rim_depth_m * 1000.0],
 		})
-	if geo.rim_thickness_m > 2.0 * geo.parting_line_m + 1e-6:
-		# The profile clamps the underside flat rather than inverting, so the
-		# shape still draws — the parameter set is inconsistent, not fatal.
+	# Track A's rule, and only Track A's rule. An earlier version of this file
+	# rejected `rim_thickness_m > 2 * parting_line_m` on the assumption that the
+	# wing is symmetric about the parting line. Real moulds are not — on very
+	# understable discs the parting line sits low on a flat-bottomed wing — and
+	# that rule flagged the Roadrunner, which is a real, PDGA-approved disc. The
+	# rule was wrong, not the disc. What the wing must actually do is fit inside
+	# the rim envelope.
+	var rim_height: float = geo.rim_depth_m + PLATE_THICKNESS_M
+	if geo.rim_thickness_m >= rim_height:
 		issues.append({
-			"level": Level.WARN, "key": "rim_thickness_m",
-			"text": "A %.1f mm wing centred %.1f mm up would reach below the resting plane; the profile flattens it there instead." % [
-				geo.rim_thickness_m * 1000.0, geo.parting_line_m * 1000.0],
+			"level": Level.BAD, "key": "rim_thickness_m",
+			"text": "A %.1f mm nose is thicker than the whole rim (%.1f mm)." % [
+				geo.rim_thickness_m * 1000.0, rim_height * 1000.0],
+		})
+	elif wing_bottom(geo) + geo.rim_thickness_m > rim_height + 1e-9:
+		issues.append({
+			"level": Level.BAD, "key": "rim_thickness_m",
+			"text": "The rim wing reaches above the flight plate: its top is at %.1f mm, the rim is %.1f mm tall." % [
+				(wing_bottom(geo) + geo.rim_thickness_m) * 1000.0, rim_height * 1000.0],
 		})
 	var implied_inner: float = geo.diameter_m * 0.5 - geo.rim_width_m
 	if absf(geo.inner_rim_edge_m - implied_inner) > 0.001:
@@ -250,10 +307,11 @@ static func check(g: Dictionary) -> Array:
 	# --- plausible as a manufactured object? --------------------------
 	if bool(d.get("valid", false)):
 		var rho: float = float(d["density_kg_m3"])
-		if rho < 800.0 or rho > 1400.0:
+		if rho < PLASTIC_DENSITY_MIN or rho > PLASTIC_DENSITY_MAX:
 			issues.append({
 				"level": Level.WARN, "key": "mass_kg",
-				"text": "Implied plastic density %.0f kg/m³ is outside the 800–1400 kg/m³ of real disc plastics — this shape and this mass do not belong to the same object." % rho,
+				"text": "Implied plastic density %.0f kg/m³ is outside the %.0f–%.0f kg/m³ of real disc plastics — this shape and this mass do not belong to the same object." % [
+					rho, PLASTIC_DENSITY_MIN, PLASTIC_DENSITY_MAX],
 			})
 		var pr: float = float(d["parting_ratio"])
 		if pr < 0.10 or pr > 0.95:

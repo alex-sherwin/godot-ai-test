@@ -23,9 +23,18 @@ extends Node3D
 ## Compatibility renderer, and a Forward+ feature fails silently on web.
 
 const LANE_HALF_WIDTH := 22.0     ## mown lane half-width, m
-const GROUND_HALF := 320.0        ## ground plane half-extent, m
+## Ground plane half-extent, m. This was 320, which the Side and Top cameras
+## can see past: they frame the whole 200 m range, so the plane's own edge came
+## into shot as a hard line with dark void beyond it and trees apparently
+## floating on nothing. The plane is two triangles, so the fix costs one draw
+## call's worth of nothing and 1.5 km is comfortably past anything either camera
+## frames. The range's own fog (range.tscn) closes the far distance.
+const GROUND_HALF := 1500.0
 const MARK_Y := 0.02              ## markings sit just above the lane
 const TREE_LINE_X := 50.0
+## Distance past which billboarded gate labels fade out; see `_add_label`.
+const LABEL_FADE_END_M := 110.0
+const LABEL_FADE_MARGIN_M := 25.0
 
 @export var range_length_m: float = 200.0
 @export var tick_spacing_m: float = 10.0
@@ -77,7 +86,10 @@ func _build_ground() -> void:
 	pm.subdivide_width = 1
 	pm.subdivide_depth = 1
 	rough.mesh = pm
-	rough.material_override = _grass_material(Color(0.271, 0.361, 0.180), 42.0, 0.14)
+	# Texture tiles per plane, so the tile count scales with the plane to keep
+	# the grass grain the same size on the ground.
+	rough.material_override = _grass_material(Color(0.271, 0.361, 0.180),
+		42.0 * GROUND_HALF / 320.0, 0.14)
 	rough.position = Vector3(0.0, -0.02, -range_length_m * 0.35)
 	rough.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(rough)
@@ -248,6 +260,14 @@ func _add_label(text: String, pos: Vector3, color: Color, height_m: float) -> vo
 	l.fixed_size = false
 	l.double_sided = true
 	l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	# Billboarded text keeps a constant world size, so every gate label from
+	# 100 m out lands in the same handful of pixels near the vanishing point and
+	# they overprint into an unreadable smear. Fade them out past ~110 m and let
+	# the numerals painted on the ground carry the far distances — they are 4 m
+	# tall and lie in the plane, so they stay legible exactly where these stop.
+	l.visibility_range_end = LABEL_FADE_END_M
+	l.visibility_range_end_margin = LABEL_FADE_MARGIN_M
+	l.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	add_child(l)
 	_labels.append(l)
 

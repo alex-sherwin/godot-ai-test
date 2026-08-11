@@ -38,13 +38,30 @@ func set_wind(w: Vector3) -> void:
 	var dir: Vector3 = Vector3(0.0, 0.0, -1.0) if calm else w / speed
 
 	if _particles:
-		_particles.emitting = not calm
-		if not calm:
+		# `emitting = false` is not enough, and this was a visible bug: with
+		# `preprocess = 4.0` the node spawns a full batch of particles before
+		# anything sets `emitting`, and in calm air their velocity is zero, so
+		# they hang motionless where they were seeded. The emission box is 84 ×
+		# 18 × 210 m centred 9 m up, so the result was ~15 thin pale sticks
+		# floating in the sky above the treeline, attached to nothing, on every
+		# load. Hiding the node is what actually makes calm look calm; the
+		# restart on the way back out reseeds the volume so the streamers do not
+		# reappear mid-flight in a stale pattern.
+		var was_hidden: bool = not _particles.visible
+		if calm:
+			_particles.emitting = false
+			_particles.visible = false
+		else:
 			_particles.direction = dir
 			_particles.initial_velocity_min = speed * 0.85
 			_particles.initial_velocity_max = speed * 1.15
 			# Long enough to cross the volume, capped so the count stays honest.
 			_particles.lifetime = clampf(190.0 / maxf(speed, 0.5), 3.0, 14.0)
+			_particles.visible = true
+			_particles.emitting = true
+			if was_hidden:
+				# Reseed with the new velocity rather than resuming a stale batch.
+				_particles.restart()
 
 	if _sock_pivot:
 		# A real sock hangs under its own weight and only lifts as the wind

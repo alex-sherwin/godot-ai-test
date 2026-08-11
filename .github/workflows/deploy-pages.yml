@@ -23,58 +23,125 @@ env:
   GODOT_TEMPLATE_DIR: 4.7.1.stable
 
 jobs:
-  build:
-    name: Export game and build site
+  # ---------------------------------------------------------------------------
+  # The gate. `build` needs this, so nothing reaches Pages without passing it.
+  #
+  # This job exists because six deploys of this project went green while the
+  # shipped build had no physics core in it. `godot --headless --export-release`
+  # returns exit 0 with scripts missing — it writes the .pck, writes the .wasm,
+  # and every size assertion downstream of it passes. GDScript resolves
+  # `class_name` at parse time, so the failure only appears in a browser. A
+  # successful export is not evidence that the export contains the program, and
+  # this job is what supplies that evidence.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Tests
     runs-on: ubuntu-latest
+    # The GDScript suite runs in ~6 s and pytest in ~65 s. The ceiling is here
+    # to turn a hang into a red job quickly rather than to accommodate one.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Restore cached Godot editor and export templates
-        id: cache-godot
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Set up Godot
+        uses: ./.github/actions/setup-godot
         with:
-          key: godot-4.7.1-stable-linux
-          path: |
-            ~/godot-bin
-            ~/.local/share/godot/export_templates
+          version: ${{ env.GODOT_VERSION }}
+          template-dir: ${{ env.GODOT_TEMPLATE_DIR }}
+          export-templates: "false" # no export here; skip the 1.28 GB archive
 
-      - name: Install Godot and web export templates
-        if: steps.cache-godot.outputs.cache-hit != 'true'
+      - name: Install Python dependencies
+        # The runner's own Python, deliberately: every other action here is
+        # pinned by commit SHA, and adding `actions/setup-python` would mean
+        # adding a pin that has not been verified against this repo. The
+        # pipeline only needs numpy/scipy/pytest, all pinned in
+        # tools/requirements.txt, and any Python the runner ships has wheels
+        # for them.
         run: |
           set -euo pipefail
-          base="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}"
+          python3 -VV
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r tools/requirements.txt
 
-          mkdir -p "$HOME/godot-bin"
-          curl -fsSL -o /tmp/godot.zip \
-            "${base}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
-          # The editor archive contains a single bare file, no wrapping directory.
-          unzip -q -j /tmp/godot.zip -d "$HOME/godot-bin"
-          mv "$HOME/godot-bin/Godot_v${GODOT_VERSION}_linux.x86_64" "$HOME/godot-bin/godot"
-          chmod +x "$HOME/godot-bin/godot"
+      # --- guards that need no engine -------------------------------------
+      - name: Every resource main.tscn needs is committed
+        run: python3 tools/ci/check_scene_refs.py
 
-          # The full template archive is ~1.28 GB; we only need the two
-          # single-threaded web templates plus version.txt. -j flattens, because
-          # the files must sit directly in the version directory rather than
-          # under a nested templates/ folder. Extract BOTH debug and release:
-          # --export-release validates both paths and logs an error for a
-          # missing one even though it still succeeds.
-          templates="$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}"
-          mkdir -p "$templates"
-          curl -fsSL -o /tmp/templates.tpz \
-            "${base}/Godot_v${GODOT_VERSION}_export_templates.tpz"
-          unzip -q -j /tmp/templates.tpz \
-            'templates/web_nothreads_release.zip' \
-            'templates/web_nothreads_debug.zip' \
-            'templates/version.txt' \
-            -d "$templates"
-          rm -f /tmp/godot.zip /tmp/templates.tpz
+      - name: Committed aero data matches the pipeline that generates it
+        # Exits 1 if `game/data/**` has drifted from what tools/aero would bake
+        # today, so hand-edited coefficients cannot ship.
+        run: python3 -m tools.aero.bake --check
 
-      - name: Add Godot to PATH and report version
+      - name: Python suite (tools/aero)
+        run: python3 -m pytest tools/aero -q
+
+      # --- guards that need the engine ------------------------------------
+      - name: Import Godot project
+        working-directory: game
         run: |
-          echo "$HOME/godot-bin" >> "$GITHUB_PATH"
-          "$HOME/godot-bin/godot" --version
-          ls -l "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}"
+          # A cold import is flaky and can exit nonzero while still doing useful
+          # work, so run it twice and tolerate failure. It is required before
+          # the resource check below, which is specifically about `class_name`
+          # resolution and therefore needs the global script-class cache.
+          godot --headless --import . || true
+          godot --headless --import . || true
+
+      - name: Every script in the scene actually compiles
+        # `load()` returns a non-null GDScript for a script whose class_name
+        # dependencies are missing, and `PackedScene.instantiate()` still hands
+        # back a Node. `GDScript.reload()` is what reports the parse error, and
+        # that is what this check gates on.
+        run: |
+          set +e -uo pipefail
+          timeout 300 godot --headless --path game --script res://tests/check_resources.gd
+          rc=$?
+          if [ "$rc" -eq 124 ]; then
+            echo "::error::resource check HUNG (no exit within 300 s) — this is a"\
+                 "runner defect, not a test failure. See game/tests/run_tests.gd"\
+                 "on the _process vs _iteration trap."
+            exit 1
+          fi
+          exit "$rc"
+
+      - name: GDScript physics suite
+        # Runs in ~6 s. Wrapped in `timeout` because the one previous failure
+        # mode here was a HANG, not a red test: the runner's frame callback was
+        # named `_iteration` (Godot 3's MainLoop virtual), which Godot 4 never
+        # calls, so the suite printed "196 passed" and then span forever with no
+        # exit code. A hang that silently eats runner minutes is worse than a
+        # red build, and it must not be confusable with a real failure — hence
+        # the explicit 124 branch.
+        run: |
+          set +e -uo pipefail
+          timeout 300 godot --headless --path game --script res://tests/run_tests.gd
+          rc=$?
+          if [ "$rc" -eq 124 ]; then
+            echo "::error::physics suite HUNG (no exit within 300 s). The suite"\
+                 "normally finishes in ~6 s. This is a runner-termination defect,"\
+                 "NOT a failing test — check game/tests/run_tests.gd::_process."
+            exit 1
+          fi
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::physics suite FAILED (exit $rc) — see the FAIL lines above."
+          fi
+          exit "$rc"
+
+  build:
+    name: Export game and build site
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Godot
+        uses: ./.github/actions/setup-godot
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          template-dir: ${{ env.GODOT_TEMPLATE_DIR }}
+          export-templates: "true"
 
       - name: Import Godot project
         working-directory: game
@@ -93,6 +160,8 @@ jobs:
           # Exit code is the only valid success signal here. --export-release
           # prints ERROR: lines for non-fatal conditions, so do NOT grep for
           # "ERROR" — `set -e` plus the size assertions below are the contract.
+          # Note that exit 0 does NOT mean the build contains the program; the
+          # `test` job is what establishes that.
           godot --headless --export-release "Web" ../web/public/game/index.html
 
       - name: Assert export produced a usable build
@@ -104,6 +173,12 @@ jobs:
           test -s web/public/game/index.html
           ls -l web/public/game
           echo "wasm bytes: $(stat -c%s web/public/game/index.wasm)"
+
+      - name: The pack actually contains the program
+        # The strongest check in the pipeline: everything before it reasons
+        # about the source tree, this one reads the artefact about to be
+        # uploaded. `--export-release` exits 0 with scripts missing.
+        run: python3 tools/ci/check_pck_contents.py web/public/game/index.pck
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0

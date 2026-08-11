@@ -7,7 +7,7 @@
     <title>Disc Golf Flight Lab</title>
     <meta
       name="description"
-      content="An interactive disc golf flight simulator. Tune speed, glide, turn and fade, then watch the aerodynamic model fly the disc down the fairway."
+      content="An interactive disc golf flight simulator built on published CFD data. Pick a disc, set the release, and watch a 240 Hz aerodynamic model fly it down a measured range — or design your own disc and see the physics follow the shape."
     />
     <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
     <link rel="stylesheet" href="/src/style.css" />
@@ -21,9 +21,12 @@
           A disc in flight is a spinning, bevelled wing. It generates lift, it
           resists the air, and because it is a gyroscope, the torque from that
           airflow does not tip it over &mdash; it turns it sideways. Flight Lab
-          simulates that behaviour directly: set a disc's speed, glide, turn and
-          fade, pick a release angle, height and spin, and watch the resulting
-          trajectory carve its way down the fairway.
+          simulates that behaviour directly: a fixed&#8209;step RK4 integrator
+          runs at 240&nbsp;Hz over lift, drag and pitching&#8209;moment tables
+          that come, for four discs, from published CFD. Pick a disc, set the
+          release, and watch the trajectory carve its way down a measured
+          200&nbsp;m range &mdash; or open the designer and edit the eight
+          parameters the disc itself is lathed from.
         </p>
 
         <div class="cta">
@@ -85,29 +88,123 @@
             <li>
               <h3>Spin decay</h3>
               <p>
-                Spin bleeds off over the flight. As it does, the disc resists
-                precession less, which is why fade arrives late and hard rather
-                than evenly across the throw.
+                Spin bleeds off over the flight &mdash; 8&ndash;12% on a full
+                drive. As it does, the disc resists precession less, which is
+                why fade arrives late and hard rather than evenly across the
+                throw.
               </p>
             </li>
           </ol>
+          <p class="footnote">
+            Integrated with fixed&#8209;step RK4 at 1/240&nbsp;s. The disc is
+            axisymmetric, so the spin <em>phase</em> never enters the equations
+            of motion &mdash; only the spin rate does. Leaving it out removes
+            the only stiff timescale in the system, which is what makes
+            240&nbsp;Hz enough.
+          </p>
         </section>
 
         <section class="panel" aria-labelledby="controls-title">
           <h2 id="controls-title">Controls</h2>
-          <!-- SEAM: gameplay agent owns this list. Keep it in sync with the
-               real in-Godot input map once the sim is interactive. -->
+          <!-- Keep in sync with game/scripts/key_bindings.gd, which is the one
+               place key ownership is declared. -->
           <dl class="controls">
-            <div><dt>Mouse drag</dt><dd>Orbit the camera</dd></div>
+            <div><dt>Space</dt><dd>Throw</dd></div>
+            <div><dt>R</dt><dd>Reset the release parameters</dd></div>
+            <div><dt>C</dt><dd>Cycle the camera view</dd></div>
+            <div><dt>V</dt><dd>Toggle the force vectors</dd></div>
+            <div><dt>T</dt><dd>Clear the ghost trails</dd></div>
+            <div><dt>H</dt><dd>Show / hide the control drawer</dd></div>
+            <div><dt>W</dt><dd>Cycle the wind preset</dd></div>
+            <div><dt>1&ndash;5</dt><dd>Panel tabs: Throw, Discs, Design, Env, Flight</dd></div>
+            <div><dt>Mouse drag</dt><dd>Orbit the camera (Free view)</dd></div>
             <div><dt>Scroll</dt><dd>Zoom</dd></div>
-            <div><dt>Space</dt><dd>Throw / replay</dd></div>
-            <div><dt>R</dt><dd>Reset to the tee</dd></div>
           </dl>
           <p class="footnote">
-            The build currently on this page is a placeholder scene that proves
-            the export and deploy pipeline. The flight model and its controls are
-            under active construction.
+            Key ownership is declared in one file,
+            <code>game/scripts/key_bindings.gd</code>, and a test fails the build
+            if any key is bound twice.
           </p>
+        </section>
+
+        <section class="panel" aria-labelledby="honest-title">
+          <h2 id="honest-title">What this is, and what it is not</h2>
+          <p class="panel-intro">
+            A simulator that states its limits precisely is more useful than one
+            that does not. The same text is in the app, behind the
+            <strong>?</strong> button.
+          </p>
+          <ol class="steps">
+            <li>
+              <h3>Four discs are measured. Ten are derived.</h3>
+              <p>
+                Real aerodynamic data exists for exactly four disc golf discs:
+                peer&#8209;reviewed CFD on 3D scans of real moulds (Giljarhus,
+                Kristiansen, Tutkun &amp; Oggiano, <em>Sports Engineering</em>
+                25:24, 2022). The other ten discs in the roster are
+                <strong>derived</strong> &mdash; their coefficients are
+                constructed by mapping geometry and published flight numbers
+                onto those four anchors, through a regression with
+                <strong>n&nbsp;=&nbsp;4</strong> (R&sup2; 0.89 and 0.91). An
+                R&sup2; on four points is barely constrained. Every disc carries
+                its provenance and the interface shows it everywhere the disc
+                appears.
+              </p>
+            </li>
+            <li>
+              <h3>The precession gain is a fudge factor</h3>
+              <p>
+                Turn and fade come from torque precessing a gyroscope. Those
+                kinematics are exact and proven in CI: the rate is
+                <code>M / (I_zz &middot; spin)</code>. On top of that the model
+                applies <code>PRECESSION_GAIN = 2.0</code>, which is
+                <strong>empirical, not derived</strong>. It stands in for
+                spin&#8209;dependent aerodynamics the source data structurally
+                cannot contain &mdash; the CFD is steady&#8209;state on a
+                <em>non&#8209;rotating</em> disc, so it has no spin&#8209;induced
+                rolling moment. It is a fudge factor with a plausible story, not
+                a measurement.
+              </p>
+            </li>
+            <li>
+              <h3>Known defect: it over-turns at low hyzer</h3>
+              <p>
+                Because that one gain scales the whole precession response, it
+                doubles the early turn as well as the late fade. Every roster
+                disc rated turn &minus;1 or lower turns over and finishes right
+                from a flat release &mdash; including a 12&#8209;speed
+                Destroyer, which in reality finishes left. Discs rated turn 0
+                behave correctly. The release defaults compensate, which is why
+                a distance driver starts at 22&deg; of hyzer: more than a real
+                thrower uses. Recorded rather than hidden.
+              </p>
+            </li>
+            <li>
+              <h3>Glide is not fittable, and damping is inert</h3>
+              <p>
+                Three of the four measured discs are rated glide 5 and one glide
+                3 &mdash; one contrast, buried inside the scatter among the
+                glide&#8209;5 discs themselves. Glide ships flagged as an
+                author&#8209;chosen heuristic rather than a fit. Pitch and roll
+                damping are Hummel's 2003 numbers for an <em>Ultimate</em> disc,
+                used unchanged because no disc&#8209;golf measurement exists;
+                under this model's scaling they contribute about 0.1% of the
+                static pitching moment, so they do essentially nothing.
+              </p>
+            </li>
+            <li>
+              <h3>60 fps is unverified</h3>
+              <p>
+                There is no GPU on the machine this was built and tested on:
+                llvmpipe gives 5&ndash;7&nbsp;fps and SwiftShader 1&ndash;2, both
+                pure CPU rasterisation, and neither says anything about real
+                hardware. The simulation costs ~0.048&nbsp;ms of CPU per frame
+                and the scene draws ~190 calls, which is trivial for any
+                integrated GPU of the last decade &mdash; so smooth playback is
+                a reasonable expectation and <strong>not a measurement</strong>.
+              </p>
+            </li>
+          </ol>
         </section>
       </main>
 
@@ -115,7 +212,17 @@
         <p>
           Built with Godot 4.7.1 (GL&nbsp;Compatibility / WebGL2), exported
           single&#8209;threaded, bundled by Vite and deployed to GitHub Pages by
-          GitHub Actions.
+          GitHub Actions, behind a test gate of 196 GDScript checks and 121
+          Python checks.
+        </p>
+        <p>
+          Aerodynamic data from Giljarhus, Kristiansen, Tutkun &amp; Oggiano
+          (2022), <em>Aerodynamic characteristics of a golf disc</em>,
+          <em>Sports Engineering</em> 25:24, via the
+          <a href="https://github.com/kegiljarhus/shotshaper" rel="noopener">shotshaper</a>
+          library (GPL&#8209;3.0). Geometry from the PDGA equipment
+          certification database.
+          <a href="https://github.com/alex-sherwin/godot-ai-test#what-this-is-honest-about" rel="noopener">Full provenance and limitations.</a>
         </p>
       </footer>
     </div>

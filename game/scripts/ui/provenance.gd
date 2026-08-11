@@ -94,4 +94,15 @@ static func explanation() -> Array:
 
 		["h2", "What is exact"],
 		["p", "Reference area, parting-line ratio, moments of inertia, implied plastic density and the cross-section itself follow from the eight geometry parameters by integration, with no fitting anywhere. Those are as accurate as the parameterisation is — which is a statement about the model, not about the data behind it."],
+
+		["h2", "The precession gain is a fudge factor"],
+		["p", "Turn and fade come from aerodynamic torque precessing a gyroscope. The kinematics of that are exact and the code proves them in CI: the precession rate is torque / (spin-axis inertia × spin rate). On top of that exact law the model applies a constant it did not derive:"],
+		["code", "dn/dt = -PRECESSION_GAIN * M_perp / (I_zz * spin)\nPRECESSION_GAIN = 2.0    # empirical. The kinematics are 1.0."],
+		["p", "At 1.0 — pure kinematics — flights are wrong in a consistent way: a distance driver hangs up for 9.4 s instead of 6, fade is about half of reality, and an understable disc never turns over. At 2.0 all four behavioural targets are met and the model reproduces the reference implementation's own example throw to 0.4%. So something real of about this size is missing, and the leading candidate is identified: the source CFD is steady-state on a NON-ROTATING disc, so it cannot contain any spin-dependent moment — in particular the spin-induced rolling moment, which is exactly a moment that would bank the disc. The 2.0 is a fudge factor with a plausible story, not a measurement."],
+
+		["h2", "What this gets wrong: hyzer sensitivity"],
+		["p", "Because that single gain doubles the whole precession response, it doubles the early turn as well as the late fade. Every disc in this roster rated turn −1 or lower therefore turns over and finishes right when released flat, including a 12-speed Destroyer, and needs 18–22° of hyzer to come back — far more than a real thrower uses. Discs rated turn 0 behave correctly from flat. The per-category release defaults compensate for this; they are not what a real thrower would use. It is a known defect, left visible rather than hidden."],
+
+		["h2", "Damping is inert"],
+		["p", "The pitch- and roll-damping coefficients are Hummel's 2003 fit to an Ultimate disc, used unchanged because no disc-golf measurement of either exists. Under this model's non-dimensionalisation they contribute about 0.1% of the static pitching moment, so they are effectively doing nothing. Spin-down was recalibrated and does matter."],
 	]

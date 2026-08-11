@@ -262,6 +262,11 @@ func _add_tab(panel: Control, title: String, fills_height: bool) -> void:
 		inner.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	inner.add_theme_constant_override("margin_top", 8)
 	inner.add_theme_constant_override("margin_right", 4)
+	# Bottom padding so a scrollable tab never ends flush with the drawer edge
+	# on a short viewport. Without it the Design tab opens with a slider sliced
+	# exactly in half at 1280x720, which reads as clipped content rather than as
+	# "there is more below".
+	inner.add_theme_constant_override("margin_bottom", 14)
 	scroll.add_child(inner)
 
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -325,7 +330,11 @@ func _build_action_bar() -> void:
 	status_row.add_child(_status_label)
 	_shortcut_hint = Label.new()
 	_shortcut_hint.theme_type_variation = "TinyLabel"
-	_shortcut_hint.text = "SPACE throw · R reset · C camera · V vectors · T trails · H panel"
+	# Generated from the binding table, so the hint cannot advertise a key the
+	# handler does not bind (it used to advertise five of them).
+	_shortcut_hint.text = KeyBindings.hint(KeyBindings.PANEL,
+		[KEY_SPACE, KEY_R, KEY_C, KEY_V, KEY_T, KEY_H]) \
+		+ " · " + KeyBindings.hint(KeyBindings.WORLD, [KEY_W])
 	_shortcut_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	status_row.add_child(_shortcut_hint)
 
@@ -410,14 +419,23 @@ func _show_info() -> void:
 ## Everything is positioned with anchors and grow directions rather than with
 ## explicit sizes: the action bar's height changes whenever its flow container
 ## rewraps, and only the layout engine knows when that happened.
+##
+## There is a floor on `size`, and the layout leans on it. `project.godot` sets
+## `display/window/stretch/mode = canvas_items` with `aspect = expand` and a
+## 1280×720 base, so the scale factor is `min(win.x/1280, win.y/720)` and the
+## canvas-space viewport is **never smaller than 1280×720** in either axis, at
+## any window size. This file used to carry sub-700 and sub-300 layout branches
+## for narrow and short viewports; they could not execute, could not be
+## screenshotted, and were deleted rather than left as untested code that looks
+## like it handles a case. `tests/check_resources.gd` asserts the three project
+## settings that guarantee the floor, so changing the stretch policy fails CI
+## here rather than producing a silently broken layout.
 func _layout() -> void:
 	var vp := size
 	if vp.x <= 0.0:
 		return
-	var margin := 12.0 if vp.x >= 900.0 else 8.0
+	var margin := 12.0
 	var drawer_w: float = clampf(vp.x * 0.31, 330.0, 440.0)
-	if vp.x < 700.0:
-		drawer_w = maxf(vp.x - 2.0 * margin - 34.0, 220.0)
 
 	for panel in [_drawer, _info_overlay]:
 		panel.anchor_left = 1.0
@@ -449,7 +467,6 @@ func _layout() -> void:
 	_hud.offset_top = margin + top_inset
 	_hud.offset_right = margin
 	_hud.offset_bottom = margin + top_inset
-	_hud.visible = vp.y > 300.0
 
 	# Bottom action bar: pinned to the bottom, grows upward as it rewraps.
 	_action_bar.anchor_left = 0.0
@@ -462,7 +479,6 @@ func _layout() -> void:
 	_action_bar.offset_right = maxf(right_edge, margin + 220.0)
 	_action_bar.offset_top = -margin
 	_action_bar.offset_bottom = -margin
-	_shortcut_hint.visible = right_edge - margin > 620.0
 
 	_handle.visible = not _drawer_open
 	_handle.anchor_left = 1.0
@@ -486,9 +502,16 @@ func set_drawer_open(open: bool) -> void:
 
 # =============================================================== shortcuts ===
 
+## Every key this handler consumes is declared in `scripts/key_bindings.gd`
+## (`KeyBindings.PANEL`) — see that file for why. The guard below is not
+## decoration: it is what stops this panel from swallowing a key that belongs to
+## the scene, and `tests/suites/test_key_bindings.gd` fails the build if the
+## `match` arms below and the table disagree.
 func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
+		return
+	if not KeyBindings.PANEL.has(key.keycode):
 		return
 	match key.keycode:
 		KEY_SPACE, KEY_ENTER, KEY_KP_ENTER:

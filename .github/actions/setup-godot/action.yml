@@ -1,0 +1,89 @@
+name: Set up Godot
+description: >-
+  Install the Godot editor (and optionally the single-threaded web export
+  templates) from cache, and put the binary on PATH.
+
+# Shared by the `test` and `build` jobs so there is one definition of "which
+# Godot". The editor and the templates are cached under separate keys because
+# only the build job needs the templates, and the template archive is 1.28 GB —
+# the test job has no reason to pull it.
+
+inputs:
+  version:
+    description: Godot version, as it appears in the godot-builds release tag.
+    required: true
+  template-dir:
+    description: >-
+      Export-template directory name. It is the literal contents of the
+      archive's version.txt — dots, no "-stable" suffix.
+    required: true
+  export-templates:
+    description: Also install the web export templates ("true" / "false").
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Restore cached Godot editor
+      id: cache-editor
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        key: godot-editor-${{ inputs.version }}-linux
+        path: ~/godot-bin
+
+    - name: Restore cached export templates
+      id: cache-templates
+      if: inputs.export-templates == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        key: godot-templates-${{ inputs.version }}-linux
+        path: ~/.local/share/godot/export_templates
+
+    - name: Install Godot editor
+      if: steps.cache-editor.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        base="https://github.com/godotengine/godot-builds/releases/download/${{ inputs.version }}"
+        mkdir -p "$HOME/godot-bin"
+        curl -fsSL -o /tmp/godot.zip \
+          "${base}/Godot_v${{ inputs.version }}_linux.x86_64.zip"
+        # The editor archive contains a single bare file, no wrapping directory.
+        unzip -q -j /tmp/godot.zip -d "$HOME/godot-bin"
+        mv "$HOME/godot-bin/Godot_v${{ inputs.version }}_linux.x86_64" "$HOME/godot-bin/godot"
+        chmod +x "$HOME/godot-bin/godot"
+        rm -f /tmp/godot.zip
+
+    - name: Install web export templates
+      if: inputs.export-templates == 'true' && steps.cache-templates.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        base="https://github.com/godotengine/godot-builds/releases/download/${{ inputs.version }}"
+        # The full template archive is ~1.28 GB; we only need the two
+        # single-threaded web templates plus version.txt. -j flattens, because
+        # the files must sit directly in the version directory rather than
+        # under a nested templates/ folder. Extract BOTH debug and release:
+        # --export-release validates both paths and logs an error for a
+        # missing one even though it still succeeds.
+        templates="$HOME/.local/share/godot/export_templates/${{ inputs.template-dir }}"
+        mkdir -p "$templates"
+        curl -fsSL -o /tmp/templates.tpz \
+          "${base}/Godot_v${{ inputs.version }}_export_templates.tpz"
+        unzip -q -j /tmp/templates.tpz \
+          'templates/web_nothreads_release.zip' \
+          'templates/web_nothreads_debug.zip' \
+          'templates/version.txt' \
+          -d "$templates"
+        rm -f /tmp/templates.tpz
+
+    - name: Add Godot to PATH and report version
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "$HOME/godot-bin" >> "$GITHUB_PATH"
+        "$HOME/godot-bin/godot" --version
+        if [ "${{ inputs.export-templates }}" = "true" ]; then
+          ls -l "$HOME/.local/share/godot/export_templates/${{ inputs.template-dir }}"
+        fi

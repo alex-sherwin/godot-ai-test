@@ -18,6 +18,16 @@ python -m tools.aero.bake --check    # assert the committed files are current
 python -m pytest tools/aero          # 121 tests
 ```
 
+`bake --check` runs in CI, so a hand-edit here fails the build rather than
+shipping. The GDScript side is cross-checked too: `tests/suites/test_geometry_mirror.gd`
+re-derives every disc's `area_m2`, `parting_ratio`, `nose_ratio`, `I_zz`,
+`I_xy`, `height_m` and `density_kg_m3` from the shipped `geometry` block using
+the runtime's own two independent implementations, and requires them to match
+the `derived` block here. Current worst disagreements over the 14 discs:
+0.0008% on `I_zz`, 0.0010% on `I_xy`, 0.0067% on density (the UI's mirror), and
+0.091% on density (the mesh lathe, which integrates the contour exactly rather
+than sampling a grid).
+
 ---
 
 ## Schema
@@ -402,6 +412,43 @@ Gain 1.0 is not a near miss. A flat drive hangs nearly twice as long as it
 should, the fade all but disappears, and the CONTRACT §5 understable-disc target
 fails outright at any release angle. A real physical effect of roughly this
 magnitude is missing from the coefficients, and the next section says which one.
+
+### The cost of a single scalar gain: over-turn at low hyzer
+
+`PRECESSION_GAIN` multiplies the *whole* precession response, so it doubles the
+early turn as well as the late fade. Measured through the shipped physics at
+27 m/s / 25 rev/s / 10° launch, sweeping hyzer (distance, lateral; + is right):
+
+| disc | 0° | 6° | 9° | 15° | 22° |
+|---|---|---|---|---|---|
+| Destroyer 12/5/**−1**/3 | 70 / **+17** | 75 / +19 | 79 / +20 | 88 / +23 | 114 / +29 |
+| Wraith 11/5/**−1**/3 | 76 / **+21** | 86 / +26 | 96 / +30 | 118 / +19 | 110 / −10 |
+| Boss 13/5/**−1**/2 | 74 / **+19** | 81 / +21 | 84 / +23 | 97 / +27 | 131 / +26 |
+| Firebird 9/3/**0**/4 | 94 / −15 | 91 / −22 | 90 / −25 | 87 / −27 | 82 / −26 |
+| Teebird 7/5/**0**/2 | 101 / −12 | 98 / −23 | 97 / −27 | 96 / −32 | 91 / −31 |
+
+The split is clean and it is on the *turn* rating, not the speed rating. Discs
+rated turn 0 fade left from a flat release, which is right. Every disc rated
+turn −1 or lower turns over from flat, finishes 17–21 m right, and dumps short —
+a 12-speed Destroyer thrown flat and hard does not do that in reality. They need
+18–22° of hyzer to come back, which is far more than a real thrower uses.
+
+Three things follow, and they should be read together:
+
+1. It is **not** a defaults problem, though the defaults were wrong too. The UI's
+   per-category release defaults have been re-swept against this data
+   (`ThrowPanel.CATEGORY_PROFILE`) so a first throw looks like the category it
+   claims to be, and they are commented as compensating for a model artefact.
+2. It is **not** independently fixable by tuning the gain down: at 1.0 the fade
+   halves and the §5 targets fail outright (see the table above this section).
+   The gain is doing two jobs because there is only one of it.
+3. The spread *between* discs at the same release is itself the n = 4 regression
+   showing through. At 13° launch / 22° hyzer the Wraith lands 19.8 m left, the
+   Destroyer 6.0 m right and the Boss 4.3 m left — 26 m of spread across three
+   discs all rated turn −1. That is the honest resolution of the mapping.
+
+Fixing this properly means measuring `C_Rr` on a rotating disc, and then
+revisiting `C_Rr` and `PRECESSION_GAIN` **together** — see the next section.
 
 ### The one coefficient the source data cannot contain
 

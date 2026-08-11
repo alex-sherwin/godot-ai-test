@@ -13,15 +13,39 @@ const T := preload("res://scripts/ui/flight_lab_theme.gd")
 ## and offering a 30 m/s putt as the middle of the slider teaches the wrong
 ## thing. Values are what a good amateur through a touring pro would produce.
 ## [speed_min, speed_max, speed_default, spin_default, launch_deg, hyzer_deg]
+##
+## ---------------------------------------------------------------------------
+## These defaults were measured, and the hyzer numbers are a model artefact
+## ---------------------------------------------------------------------------
+## Every default below was chosen by sweeping launch angle × hyzer angle for the
+## discs in that category through the shipped physics and picking a release
+## whose flight matches what the category is supposed to do. The earlier set was
+## never swept and showed badly: the putter default was 13 m/s, which is a
+## *putt* (16 m), not the ~18 m/s drive CONTRACT §5 specifies; and the distance
+## driver default of 9° hyzer produced a Destroyer that flew 78.6 m and finished
+## 20 m RIGHT — an overstable 12-speed that never fades back, which is the first
+## thing a user would see and would read as a broken simulator.
+##
+## The distance-driver hyzer of 22° is much more than a real thrower uses, and
+## that is a **known limitation of the model, not a modelling choice made here**.
+## The shipped precession law carries an empirical `PRECESSION_GAIN = 2.0`
+## (CONTRACT §4 v3) that doubles the whole precession response — the early turn
+## as well as the late fade — so every roster disc with a published turn of −1
+## or lower turns over and stays right when released flat, and needs 18–22° of
+## hyzer to come back. Discs with turn 0 (Teebird, Firebird, Aviar, Zone, Roc)
+## behave correctly from flat. See README.md, "What this model gets wrong".
+## The 13°/22° distance-driver release is also exactly the one
+## `tools/aero/validation/destroyer_power_drive.json` publishes, so pressing
+## THROW on a Destroyer reproduces the documented reference flight (113.5 m).
 const CATEGORY_PROFILE := {
-	"putter":          [4.0, 22.0, 13.0, 14.0, 4.0, 0.0],
-	"approach":        [5.0, 24.0, 15.0, 16.0, 5.0, 2.0],
-	"midrange":        [6.0, 28.0, 18.0, 19.0, 6.0, 4.0],
-	"fairway_driver":  [8.0, 32.0, 22.0, 21.0, 8.0, 6.0],
-	"control_driver":  [9.0, 36.0, 25.0, 23.0, 9.0, 8.0],
-	"distance_driver": [10.0, 40.0, 27.0, 25.0, 10.0, 9.0],
+	"putter":          [4.0, 22.0, 18.0, 16.0, 8.0, 2.0],
+	"approach":        [5.0, 24.0, 19.0, 17.0, 8.0, 3.0],
+	"midrange":        [6.0, 28.0, 22.0, 20.0, 8.0, 3.0],
+	"fairway_driver":  [8.0, 32.0, 24.0, 22.0, 9.0, 6.0],
+	"control_driver":  [9.0, 36.0, 26.0, 24.0, 10.0, 8.0],
+	"distance_driver": [10.0, 40.0, 27.0, 25.0, 13.0, 22.0],
 }
-const DEFAULT_PROFILE := [5.0, 36.0, 20.0, 20.0, 6.0, 4.0]
+const DEFAULT_PROFILE := [5.0, 36.0, 22.0, 20.0, 9.0, 6.0]
 
 var speed: SliderField
 var spin: SliderField
