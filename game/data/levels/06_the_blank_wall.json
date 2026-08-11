@@ -1,0 +1,335 @@
+{
+  "schema": 1,
+  "id": "06_the_blank_wall",
+  "order": 6,
+  "name": "The Blank Wall",
+  "concept": "Portal discs. One panel accepts a portal; everything else is stone.",
+  "hint": "A portal disc opens a portal wherever it strikes a portalable panel - so where it hits, and how high, is your choice to make.",
+  "teaches": [
+    "portal discs",
+    "portalable surfaces",
+    "placement height"
+  ],
+  "portal_disc_convention": "The level supplies a FIXED EXIT portal in the Vault. The player places only the ENTRY portal, with one portal disc.",
+  "rooms": [
+    {
+      "id": "tee_chamber",
+      "name": "Tee Chamber",
+      "bounds": {
+        "x": [
+          -35,
+          35
+        ],
+        "y": [
+          0,
+          22
+        ],
+        "z": [
+          -40,
+          10
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15
+      },
+      "surfaces": [
+        {
+          "id": "far_plain",
+          "plane": {
+            "axis": "z",
+            "value": -40
+          },
+          "normal": "+z",
+          "rect": {
+            "x": [
+              -35,
+              2
+            ],
+            "y": [
+              0,
+              22
+            ]
+          },
+          "portalable": false
+        },
+        {
+          "id": "far_panel",
+          "plane": {
+            "axis": "z",
+            "value": -40
+          },
+          "normal": "+z",
+          "rect": {
+            "x": [
+              2,
+              28
+            ],
+            "y": [
+              2,
+              20
+            ]
+          },
+          "portalable": true
+        },
+        {
+          "id": "far_edge",
+          "plane": {
+            "axis": "z",
+            "value": -40
+          },
+          "normal": "+z",
+          "rect": {
+            "x": [
+              28,
+              35
+            ],
+            "y": [
+              0,
+              22
+            ]
+          },
+          "portalable": false
+        }
+      ],
+      "barriers": [],
+      "world_origin": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "vault",
+      "name": "The Vault",
+      "bounds": {
+        "x": [
+          -45,
+          45
+        ],
+        "y": [
+          0,
+          22
+        ],
+        "z": [
+          -60,
+          4
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        120.0,
+        0.0,
+        13.0
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "exit_fixed",
+      "room": "vault",
+      "center": [
+        3.0,
+        9,
+        4
+      ],
+      "facing": "-z",
+      "up": "+y",
+      "width_m": 10,
+      "height_m": 8,
+      "link": "placed_a",
+      "inverting": false,
+      "starts_open": true
+    }
+  ],
+  "tee": {
+    "room": "tee_chamber",
+    "position": [
+      0,
+      0,
+      0
+    ]
+  },
+  "flag": {
+    "room": "vault",
+    "position": [
+      0,
+      0,
+      -28
+    ]
+  },
+  "buttons": [],
+  "portal_discs": [
+    {
+      "id": "portal_a",
+      "count": 1,
+      "inverting": false,
+      "opens_portal_id": "placed_a",
+      "link": "exit_fixed",
+      "width_m": 10,
+      "height_m": 8,
+      "note": "clamped to fit inside the struck panel"
+    }
+  ],
+  "allowed_discs": [
+    {
+      "id": "leopard",
+      "count": -1
+    },
+    {
+      "id": "teebird",
+      "count": -1
+    },
+    {
+      "id": "roc",
+      "count": -1
+    }
+  ],
+  "objective": {
+    "type": "min_discs_then_closest",
+    "max_discs": 4
+  },
+  "medals": {
+    "gold": {
+      "max_discs": 2,
+      "max_flag_distance_m": 4.0
+    },
+    "silver": {
+      "max_discs": 3,
+      "max_flag_distance_m": 8.0
+    },
+    "bronze": {
+      "max_discs": 4,
+      "max_flag_distance_m": 20.0
+    }
+  },
+  "intended_solution": [
+    {
+      "role": "place_portal_a",
+      "disc": "leopard",
+      "speed_mps": 24,
+      "spin_rps": 22,
+      "nose_deg": 0.0,
+      "hyzer_deg": 0,
+      "launch_deg": 18,
+      "heading_deg": 0.0,
+      "release_height_m": 1.4,
+      "expected": {
+        "surface": "far_panel",
+        "impact": [
+          5.28,
+          10.66,
+          -40.0
+        ],
+        "portal_center": [
+          7.0,
+          10.66,
+          -40.0
+        ],
+        "flight_time_s": 2.346,
+        "outcome": "surface:far_panel"
+      }
+    },
+    {
+      "role": "score",
+      "disc": "teebird",
+      "speed_mps": 23,
+      "spin_rps": 20,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 12,
+      "heading_deg": 16,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "vault",
+        "landing": [
+          -0.21,
+          0.0,
+          -26.6
+        ],
+        "flag_distance_m": 1.414,
+        "flight_time_s": 5.22,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "alternate_solutions": [
+    {
+      "role": "place_portal_a",
+      "disc": "roc",
+      "speed_mps": 22,
+      "spin_rps": 20,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 10,
+      "heading_deg": 20,
+      "release_height_m": 1.4,
+      "expected": {
+        "surface": "far_panel",
+        "impact": [
+          12.07,
+          5.33,
+          -40.0
+        ],
+        "portal_center": [
+          12.07,
+          6.0,
+          -40.0
+        ],
+        "flight_time_s": 2.529,
+        "outcome": "surface:far_panel"
+      }
+    },
+    {
+      "role": "score",
+      "disc": "teebird",
+      "speed_mps": 23,
+      "spin_rps": 20,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 12,
+      "heading_deg": 22,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "vault",
+        "landing": [
+          -2.72,
+          0.0,
+          -29.95
+        ],
+        "flag_distance_m": 3.348,
+        "flight_time_s": 5.77,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "validation": {
+    "failure_mode": "scoring throw at heading +8 misses the placed portal and hits plain wall",
+    "design_note": "exit_fixed moved from x=0 to x=+3 in the Vault. With it on the flag line the only gold line entered the placed portal within 5 cm of the rim -- and with the engine's disc-radius aperture inset, the published line missed. Gold window 2.0 deg -> 4.5 deg of aim.",
+    "baked": {
+      "harness": "tools/aero/validate.py reference integrator via portal_sim.py, dt=1/240",
+      "intended": {
+        "discs": 2,
+        "flag_distance_m": 1.414,
+        "medal": "gold"
+      }
+    }
+  }
+}

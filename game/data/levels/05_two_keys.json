@@ -1,0 +1,296 @@
+{
+  "schema": 1,
+  "id": "05_two_keys",
+  "order": 5,
+  "name": "Two Keys",
+  "concept": "Buttons open a gate. One curving throw can arm both, if you read the fade.",
+  "hint": "One disc can arm both locks if you find the line that curves through them.",
+  "teaches": [
+    "buttons",
+    "locked barriers",
+    "minimise discs"
+  ],
+  "rooms": [
+    {
+      "id": "tee_chamber",
+      "name": "Tee Chamber",
+      "bounds": {
+        "x": [
+          -30,
+          30
+        ],
+        "y": [
+          0,
+          16
+        ],
+        "z": [
+          -20,
+          12
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "lock_hall",
+      "name": "Lock Hall",
+      "bounds": {
+        "x": [
+          -50,
+          50
+        ],
+        "y": [
+          0,
+          22
+        ],
+        "z": [
+          -130,
+          4
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15
+      },
+      "surfaces": [],
+      "barriers": [
+        {
+          "id": "gate",
+          "box": {
+            "x": [
+              -50,
+              50
+            ],
+            "y": [
+              0,
+              22
+            ],
+            "z": [
+              -56,
+              -54
+            ]
+          },
+          "starts_solid": true,
+          "opened_by": [
+            "key_a",
+            "key_b"
+          ],
+          "opens_between_throws": true
+        }
+      ],
+      "world_origin": [
+        120.0,
+        0.0,
+        59.0
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "p1a",
+      "room": "tee_chamber",
+      "center": [
+        0,
+        6,
+        -20
+      ],
+      "facing": "+z",
+      "up": "+y",
+      "width_m": 36,
+      "height_m": 12,
+      "link": "p1b",
+      "inverting": false,
+      "starts_open": true
+    },
+    {
+      "id": "p1b",
+      "room": "lock_hall",
+      "center": [
+        0,
+        6,
+        4
+      ],
+      "facing": "-z",
+      "up": "+y",
+      "width_m": 36,
+      "height_m": 12,
+      "link": "p1a",
+      "inverting": false,
+      "starts_open": true
+    }
+  ],
+  "tee": {
+    "room": "tee_chamber",
+    "position": [
+      0,
+      0,
+      0
+    ]
+  },
+  "flag": {
+    "room": "lock_hall",
+    "position": [
+      0,
+      0,
+      -80
+    ]
+  },
+  "buttons": [
+    {
+      "id": "key_a",
+      "room": "lock_hall",
+      "center": [
+        -2.9,
+        5.9,
+        -32.1
+      ],
+      "radius_m": 3.5,
+      "unlocks": [
+        "gate"
+      ]
+    },
+    {
+      "id": "key_b",
+      "room": "lock_hall",
+      "center": [
+        -11.0,
+        2.8,
+        -47.2
+      ],
+      "radius_m": 3.5,
+      "unlocks": [
+        "gate"
+      ]
+    }
+  ],
+  "portal_discs": [],
+  "allowed_discs": [
+    {
+      "id": "teebird",
+      "count": -1
+    },
+    {
+      "id": "firebird",
+      "count": -1
+    },
+    {
+      "id": "destroyer",
+      "count": -1
+    },
+    {
+      "id": "roc",
+      "count": -1
+    }
+  ],
+  "objective": {
+    "type": "buttons_then_flag",
+    "requires_buttons": [
+      "key_a",
+      "key_b"
+    ],
+    "score": "discs_used, tie-broken by flag distance",
+    "max_discs": 4
+  },
+  "medals": {
+    "gold": {
+      "max_discs": 2,
+      "max_flag_distance_m": 6.0
+    },
+    "silver": {
+      "max_discs": 3,
+      "max_flag_distance_m": 10.0
+    },
+    "bronze": {
+      "max_discs": 4,
+      "max_flag_distance_m": 25.0
+    }
+  },
+  "intended_solution": [
+    {
+      "role": "arm",
+      "disc": "teebird",
+      "speed_mps": 23,
+      "spin_rps": 20,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 9,
+      "heading_deg": 0.0,
+      "release_height_m": 1.4,
+      "expected": {
+        "flight_time_s": 5.326,
+        "outcome": "floor"
+      }
+    },
+    {
+      "role": "score",
+      "disc": "destroyer",
+      "speed_mps": 27,
+      "spin_rps": 25,
+      "nose_deg": 0.0,
+      "hyzer_deg": 26,
+      "launch_deg": 13,
+      "heading_deg": 5,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "lock_hall",
+        "landing": [
+          -0.54,
+          0.0,
+          -83.39
+        ],
+        "flag_distance_m": 3.433,
+        "flight_time_s": 8.047,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "alternate_solutions": [
+    {
+      "role": "arm",
+      "disc": "firebird",
+      "speed_mps": 25,
+      "spin_rps": 23,
+      "nose_deg": 0.0,
+      "hyzer_deg": 5,
+      "launch_deg": 10,
+      "heading_deg": 0.0,
+      "release_height_m": 1.4,
+      "expected": {
+        "flight_time_s": 5.165,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "validation": {
+    "failure_mode": "with the gate shut the Destroyer stops dead on it at 74 m",
+    "baked": {
+      "harness": "tools/aero/validate.py reference integrator via portal_sim.py, dt=1/240",
+      "intended": {
+        "discs": 2,
+        "flag_distance_m": 3.433,
+        "medal": "gold"
+      }
+    }
+  }
+}

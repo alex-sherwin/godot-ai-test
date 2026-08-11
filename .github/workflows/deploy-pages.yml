@@ -127,6 +127,40 @@ jobs:
           fi
           exit "$rc"
 
+      - name: Puzzle suite and level replay gate
+        # Replays every shipped level's intended_solution through the real
+        # PuzzleSession and asserts the landing against the measurement baked
+        # into the level file, to +/- 0.5 m.
+        #
+        # This is a physics regression test wearing level content as its
+        # fixture. The ten levels were designed against the SHIPPED integrator —
+        # every distance in them is a measurement, not an estimate — so a change
+        # to PRECESSION_GAIN, a coefficient table, the portal transform, the
+        # per-room environment split or the event locator does not make the game
+        # subtly worse, it fails here with the metre error printed. Without it a
+        # level can silently become unsolvable and nobody finds out until a
+        # player cannot gold Level 9.
+        #
+        # Separate from the physics suite because it is owned by a different
+        # track and gates different content; both must pass before `build` runs.
+        run: |
+          set +e -uo pipefail
+          timeout 300 godot --headless --path game --script res://tests/run_puzzle_tests.gd
+          rc=$?
+          if [ "$rc" -eq 124 ]; then
+            echo "::error::puzzle suite HUNG (no exit within 300 s). It normally"\
+                 "finishes in ~3 s. That is a runner-termination defect, NOT a"\
+                 "failing test — see the _process vs _iteration note in"\
+                 "game/tests/run_tests.gd."
+            exit 1
+          fi
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::level replay gate FAILED (exit $rc). A shipped level no"\
+                 "longer plays the way it was measured — see the FAIL lines above"\
+                 "for which level and by how many metres."
+          fi
+          exit "$rc"
+
   build:
     name: Export game and build site
     needs: test

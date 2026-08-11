@@ -1,0 +1,254 @@
+{
+  "schema": 1,
+  "id": "08_the_drop",
+  "order": 8,
+  "name": "The Drop",
+  "concept": "The dive portal. It hands the disc back upside down, and an inverted wing pulls down.",
+  "hint": "That portal is mounted upside down: it flips your disc, and an upside-down wing pulls DOWN - the flatter you arrive, the further the dive carries.",
+  "teaches": [
+    "inverting / dive portals",
+    "the frame mirrors your height about its centre"
+  ],
+  "rooms": [
+    {
+      "id": "tee_chamber",
+      "name": "Tee Chamber",
+      "bounds": {
+        "x": [
+          -30,
+          30
+        ],
+        "y": [
+          0,
+          22
+        ],
+        "z": [
+          -35,
+          12
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "sump",
+      "name": "The Sump",
+      "bounds": {
+        "x": [
+          -25,
+          25
+        ],
+        "y": [
+          0,
+          15
+        ],
+        "z": [
+          -30,
+          4
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        95.0,
+        0.0,
+        1.5
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "d1a",
+      "room": "tee_chamber",
+      "center": [
+        0,
+        6,
+        -35
+      ],
+      "facing": "+z",
+      "up": "+y",
+      "width_m": 24,
+      "height_m": 12,
+      "link": "d1b",
+      "inverting": false,
+      "starts_open": true
+    },
+    {
+      "id": "d1b",
+      "room": "sump",
+      "center": [
+        0,
+        6,
+        4
+      ],
+      "facing": "-z",
+      "up": "+y",
+      "width_m": 24,
+      "height_m": 12,
+      "link": "d1a",
+      "inverting": true,
+      "starts_open": true
+    }
+  ],
+  "tee": {
+    "room": "tee_chamber",
+    "position": [
+      0,
+      0,
+      0
+    ]
+  },
+  "flag": {
+    "room": "sump",
+    "position": [
+      0,
+      0,
+      -19
+    ]
+  },
+  "buttons": [],
+  "portal_discs": [],
+  "allowed_discs": [
+    {
+      "id": "buzzz",
+      "count": -1
+    },
+    {
+      "id": "teebird",
+      "count": -1
+    },
+    {
+      "id": "firebird",
+      "count": -1
+    },
+    {
+      "id": "aviar",
+      "count": -1
+    }
+  ],
+  "objective": {
+    "type": "closest_to_flag",
+    "max_discs": 1
+  },
+  "medals": {
+    "gold": {
+      "max_discs": 1,
+      "max_flag_distance_m": 3.0
+    },
+    "silver": {
+      "max_discs": 1,
+      "max_flag_distance_m": 8.0
+    },
+    "bronze": {
+      "max_discs": 1,
+      "max_flag_distance_m": 16.0
+    }
+  },
+  "intended_solution": [
+    {
+      "role": "score",
+      "disc": "buzzz",
+      "speed_mps": 22,
+      "spin_rps": 20,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 6,
+      "heading_deg": 0.0,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "sump",
+        "landing": [
+          1.78,
+          0.0,
+          -18.94
+        ],
+        "flag_distance_m": 1.784,
+        "flight_time_s": 3.58,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "alternate_solutions": [
+    {
+      "role": "score",
+      "disc": "firebird",
+      "speed_mps": 25,
+      "spin_rps": 23,
+      "nose_deg": 0.0,
+      "hyzer_deg": 5,
+      "launch_deg": 9,
+      "heading_deg": 0.0,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "sump",
+        "landing": [
+          2.89,
+          0.0,
+          -18.04
+        ],
+        "flag_distance_m": 3.046,
+        "flight_time_s": 2.95,
+        "outcome": "floor"
+      }
+    },
+    {
+      "role": "score",
+      "disc": "teebird",
+      "speed_mps": 23,
+      "spin_rps": 20,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 9,
+      "heading_deg": 0.0,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "sump",
+        "landing": [
+          2.86,
+          0.0,
+          -16.66
+        ],
+        "flag_distance_m": 3.695,
+        "flight_time_s": 3.138,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "validation": {
+    "key_measurement": "launch 6 deg -> 23 m past the portal; launch 15 deg -> 9 m past. Higher launch = SHORTER dive.",
+    "decoy": "the Aviar is too slow to dive properly; it drifts 13 m right",
+    "baked": {
+      "harness": "tools/aero/validate.py reference integrator via portal_sim.py, dt=1/240",
+      "intended": {
+        "discs": 1,
+        "flag_distance_m": 1.784,
+        "medal": "gold"
+      }
+    }
+  }
+}

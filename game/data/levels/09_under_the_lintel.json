@@ -1,0 +1,336 @@
+{
+  "schema": 1,
+  "id": "09_under_the_lintel",
+  "order": 9,
+  "name": "Under the Lintel",
+  "concept": "You place the dive portal. Only the dive gets a disc under the lintel and down the crypt.",
+  "hint": "Nothing that still has lift will fit under that lintel - place your portal so the dive is already underway when you reach it.",
+  "teaches": [
+    "placing a dive portal",
+    "using the dive to duck a barrier"
+  ],
+  "portal_disc_convention": "The Crypt's exit portal is a FIXED inverting portal. The player places the entry portal (normal) on the dive panel with one portal disc.",
+  "rooms": [
+    {
+      "id": "approach",
+      "name": "The Approach",
+      "bounds": {
+        "x": [
+          -35,
+          35
+        ],
+        "y": [
+          0,
+          24
+        ],
+        "z": [
+          -50,
+          10
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15
+      },
+      "surfaces": [
+        {
+          "id": "plain_left",
+          "plane": {
+            "axis": "z",
+            "value": -50
+          },
+          "normal": "+z",
+          "rect": {
+            "x": [
+              -35,
+              -14
+            ],
+            "y": [
+              0,
+              24
+            ]
+          },
+          "portalable": false
+        },
+        {
+          "id": "dive_panel",
+          "plane": {
+            "axis": "z",
+            "value": -50
+          },
+          "normal": "+z",
+          "rect": {
+            "x": [
+              -14,
+              14
+            ],
+            "y": [
+              2,
+              18
+            ]
+          },
+          "portalable": true
+        },
+        {
+          "id": "plain_right",
+          "plane": {
+            "axis": "z",
+            "value": -50
+          },
+          "normal": "+z",
+          "rect": {
+            "x": [
+              14,
+              35
+            ],
+            "y": [
+              0,
+              24
+            ]
+          },
+          "portalable": false
+        }
+      ],
+      "barriers": [],
+      "world_origin": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "crypt",
+      "name": "The Crypt",
+      "bounds": {
+        "x": [
+          -28,
+          28
+        ],
+        "y": [
+          0,
+          18
+        ],
+        "z": [
+          -40,
+          4
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          3.5,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15,
+        "note": "3.5 m/s toward +X"
+      },
+      "surfaces": [],
+      "barriers": [
+        {
+          "id": "lintel",
+          "box": {
+            "x": [
+              -28,
+              28
+            ],
+            "y": [
+              6.0,
+              18
+            ],
+            "z": [
+              -17,
+              -15
+            ]
+          },
+          "starts_solid": true,
+          "opened_by": [],
+          "note": "underside raised from 4.5 m to 6 m to widen the scoring window; nothing else changed"
+        }
+      ],
+      "world_origin": [
+        103.0,
+        0.0,
+        -2.0
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "exit_fixed",
+      "room": "crypt",
+      "center": [
+        0,
+        7,
+        4
+      ],
+      "facing": "-z",
+      "up": "+y",
+      "width_m": 12,
+      "height_m": 10,
+      "link": "placed_a",
+      "inverting": true,
+      "starts_open": true
+    }
+  ],
+  "tee": {
+    "room": "approach",
+    "position": [
+      0,
+      0,
+      0
+    ]
+  },
+  "flag": {
+    "room": "crypt",
+    "position": [
+      0,
+      0,
+      -26
+    ]
+  },
+  "buttons": [],
+  "portal_discs": [
+    {
+      "id": "portal_a",
+      "count": 1,
+      "inverting": false,
+      "opens_portal_id": "placed_a",
+      "link": "exit_fixed",
+      "width_m": 12,
+      "height_m": 10
+    }
+  ],
+  "allowed_discs": [
+    {
+      "id": "leopard",
+      "count": -1
+    },
+    {
+      "id": "firebird",
+      "count": -1
+    },
+    {
+      "id": "teebird",
+      "count": -1
+    },
+    {
+      "id": "roc",
+      "count": -1
+    }
+  ],
+  "objective": {
+    "type": "min_discs_then_closest",
+    "max_discs": 4
+  },
+  "medals": {
+    "gold": {
+      "max_discs": 2,
+      "max_flag_distance_m": 4.0
+    },
+    "silver": {
+      "max_discs": 3,
+      "max_flag_distance_m": 9.0
+    },
+    "bronze": {
+      "max_discs": 4,
+      "max_flag_distance_m": 20.0
+    }
+  },
+  "intended_solution": [
+    {
+      "role": "place_portal_a",
+      "disc": "leopard",
+      "speed_mps": 24,
+      "spin_rps": 22,
+      "nose_deg": 0.0,
+      "hyzer_deg": 0,
+      "launch_deg": 16,
+      "heading_deg": -10,
+      "release_height_m": 1.4,
+      "expected": {
+        "surface": "dive_panel",
+        "impact": [
+          1.1,
+          8.96,
+          -50.0
+        ],
+        "portal_center": [
+          1.1,
+          8.96,
+          -50.0
+        ],
+        "flight_time_s": 3.028,
+        "outcome": "surface:dive_panel"
+      }
+    },
+    {
+      "role": "score",
+      "disc": "firebird",
+      "speed_mps": 25,
+      "spin_rps": 23,
+      "nose_deg": 0.0,
+      "hyzer_deg": 5,
+      "launch_deg": 8,
+      "heading_deg": 8,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "crypt",
+        "landing": [
+          -0.73,
+          0.0,
+          -24.27
+        ],
+        "flag_distance_m": 1.879,
+        "flight_time_s": 4.41,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "alternate_solutions": [
+    {
+      "role": "score",
+      "disc": "teebird",
+      "speed_mps": 23,
+      "spin_rps": 20,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 8,
+      "heading_deg": 8,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "crypt",
+        "landing": [
+          -1.11,
+          0.0,
+          -21.52
+        ],
+        "flag_distance_m": 4.61,
+        "flight_time_s": 4.66,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "validation": {
+    "failure_modes": [
+      "launch 12 on the scoring throw exits too low and dumps at 13.6 m",
+      "launch 4 never reaches the placed portal"
+    ],
+    "design_note": "Lintel underside raised from 4.5 m to 6 m.",
+    "baked": {
+      "harness": "tools/aero/validate.py reference integrator via portal_sim.py, dt=1/240",
+      "intended": {
+        "discs": 2,
+        "flag_distance_m": 1.879,
+        "medal": "gold"
+      }
+    }
+  }
+}

@@ -1,0 +1,336 @@
+{
+  "schema": 1,
+  "id": "07_windward_placement",
+  "order": 7,
+  "name": "Windward Placement",
+  "concept": "Placing the portal is the skill shot. The panel is high, left, and there is a gusting updraft.",
+  "hint": "Place the portal low in its panel and enter it high - the height you carry through the frame is the height you get on the far side.",
+  "teaches": [
+    "placement under weather",
+    "portal frame offsets carry through"
+  ],
+  "portal_disc_convention": "Fixed exit portal supplied in the Still Vault; the player places the entry with one portal disc.",
+  "rooms": [
+    {
+      "id": "gust_bay",
+      "name": "Gust Bay",
+      "bounds": {
+        "x": [
+          -45,
+          45
+        ],
+        "y": [
+          0,
+          26
+        ],
+        "z": [
+          -50,
+          10
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          -5,
+          1.2,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15,
+        "note": "5 m/s crosswind toward -X with a 1.2 m/s updraft"
+      },
+      "surfaces": [
+        {
+          "id": "west_plain",
+          "plane": {
+            "axis": "z",
+            "value": -50
+          },
+          "normal": "+z",
+          "rect": {
+            "x": [
+              -45,
+              -28
+            ],
+            "y": [
+              0,
+              26
+            ]
+          },
+          "portalable": false
+        },
+        {
+          "id": "high_panel",
+          "plane": {
+            "axis": "z",
+            "value": -50
+          },
+          "normal": "+z",
+          "rect": {
+            "x": [
+              -28,
+              2
+            ],
+            "y": [
+              8,
+              22
+            ]
+          },
+          "portalable": true
+        },
+        {
+          "id": "east_plain",
+          "plane": {
+            "axis": "z",
+            "value": -50
+          },
+          "normal": "+z",
+          "rect": {
+            "x": [
+              2,
+              45
+            ],
+            "y": [
+              0,
+              26
+            ]
+          },
+          "portalable": false
+        }
+      ],
+      "barriers": [],
+      "world_origin": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "still_vault",
+      "name": "Still Vault",
+      "bounds": {
+        "x": [
+          -45,
+          45
+        ],
+        "y": [
+          0,
+          22
+        ],
+        "z": [
+          -80,
+          4
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        130.0,
+        0.0,
+        18.0
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "exit_fixed",
+      "room": "still_vault",
+      "center": [
+        0,
+        8,
+        4
+      ],
+      "facing": "-z",
+      "up": "+y",
+      "width_m": 10,
+      "height_m": 8,
+      "link": "placed_a",
+      "inverting": false,
+      "starts_open": true
+    }
+  ],
+  "tee": {
+    "room": "gust_bay",
+    "position": [
+      0,
+      0,
+      0
+    ]
+  },
+  "flag": {
+    "room": "still_vault",
+    "position": [
+      -7,
+      0,
+      -26
+    ]
+  },
+  "buttons": [],
+  "portal_discs": [
+    {
+      "id": "portal_a",
+      "count": 1,
+      "inverting": false,
+      "opens_portal_id": "placed_a",
+      "link": "exit_fixed",
+      "width_m": 10,
+      "height_m": 8
+    }
+  ],
+  "allowed_discs": [
+    {
+      "id": "teebird",
+      "count": -1
+    },
+    {
+      "id": "roc",
+      "count": -1
+    },
+    {
+      "id": "firebird",
+      "count": -1
+    }
+  ],
+  "objective": {
+    "type": "min_discs_then_closest",
+    "max_discs": 4
+  },
+  "medals": {
+    "gold": {
+      "max_discs": 2,
+      "max_flag_distance_m": 5.0
+    },
+    "silver": {
+      "max_discs": 3,
+      "max_flag_distance_m": 9.0
+    },
+    "bronze": {
+      "max_discs": 4,
+      "max_flag_distance_m": 20.0
+    }
+  },
+  "intended_solution": [
+    {
+      "role": "place_portal_a",
+      "disc": "teebird",
+      "speed_mps": 23,
+      "spin_rps": 20,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 12,
+      "heading_deg": 0.0,
+      "release_height_m": 1.4,
+      "expected": {
+        "surface": "high_panel",
+        "impact": [
+          -6.18,
+          12.03,
+          -50.0
+        ],
+        "portal_center": [
+          -6.18,
+          12.03,
+          -50.0
+        ],
+        "flight_time_s": 3.029,
+        "outcome": "surface:high_panel"
+      }
+    },
+    {
+      "role": "score",
+      "disc": "teebird",
+      "speed_mps": 23,
+      "spin_rps": 20,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 8,
+      "heading_deg": 3,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "still_vault",
+        "landing": [
+          -10.06,
+          0.0,
+          -24.06
+        ],
+        "flag_distance_m": 3.625,
+        "flight_time_s": 5.247,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "alternate_solutions": [
+    {
+      "role": "place_portal_a",
+      "disc": "roc",
+      "speed_mps": 22,
+      "spin_rps": 20,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 16,
+      "heading_deg": 10,
+      "release_height_m": 1.4,
+      "expected": {
+        "surface": "high_panel",
+        "impact": [
+          -6.78,
+          11.71,
+          -50.0
+        ],
+        "portal_center": [
+          -6.78,
+          12.0,
+          -50.0
+        ],
+        "flight_time_s": 3.808,
+        "outcome": "surface:high_panel"
+      }
+    },
+    {
+      "role": "score",
+      "disc": "firebird",
+      "speed_mps": 25,
+      "spin_rps": 23,
+      "nose_deg": 0.0,
+      "hyzer_deg": 5,
+      "launch_deg": 8,
+      "heading_deg": 3,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "still_vault",
+        "landing": [
+          -10.93,
+          0.0,
+          -25.45
+        ],
+        "flag_distance_m": 3.971,
+        "flight_time_s": 4.798,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "validation": {
+    "failure_modes": [
+      "heading +10 puts the portal disc on east_plain - spent, no portal",
+      "Roc scoring throw at launch 8 hits the wall below the panel"
+    ],
+    "baked": {
+      "harness": "tools/aero/validate.py reference integrator via portal_sim.py, dt=1/240",
+      "intended": {
+        "discs": 2,
+        "flag_distance_m": 3.625,
+        "medal": "gold"
+      }
+    }
+  }
+}

@@ -1,0 +1,245 @@
+{
+  "schema": 1,
+  "id": "01_crosswind_hall",
+  "order": 1,
+  "name": "Crosswind Hall",
+  "concept": "The wall ahead is a portal. The room behind it has its own weather.",
+  "hint": "Every room keeps its own weather - the far room's crosswind starts the instant your disc leaves this one.",
+  "teaches": [
+    "portals",
+    "per-room wind"
+  ],
+  "rooms": [
+    {
+      "id": "tee_chamber",
+      "name": "Tee Chamber",
+      "bounds": {
+        "x": [
+          -30,
+          30
+        ],
+        "y": [
+          0,
+          16
+        ],
+        "z": [
+          -20,
+          12
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15
+      },
+      "surfaces": [
+        {
+          "id": "tee_far_wall",
+          "plane": {
+            "axis": "z",
+            "value": -20
+          },
+          "normal": "+z",
+          "rect": {
+            "x": [
+              -30,
+              30
+            ],
+            "y": [
+              0,
+              16
+            ]
+          },
+          "portalable": false
+        }
+      ],
+      "barriers": [],
+      "world_origin": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "crosswind_hall",
+      "name": "Crosswind Hall",
+      "bounds": {
+        "x": [
+          -60,
+          60
+        ],
+        "y": [
+          0,
+          20
+        ],
+        "z": [
+          -110,
+          4
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          -6,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15,
+        "note": "6 m/s steady crosswind blowing toward -X"
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        130.0,
+        0.0,
+        49.0
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "p1a",
+      "room": "tee_chamber",
+      "center": [
+        0,
+        6,
+        -20
+      ],
+      "facing": "+z",
+      "up": "+y",
+      "width_m": 36,
+      "height_m": 12,
+      "link": "p1b",
+      "inverting": false,
+      "starts_open": true
+    },
+    {
+      "id": "p1b",
+      "room": "crosswind_hall",
+      "center": [
+        0,
+        6,
+        4
+      ],
+      "facing": "-z",
+      "up": "+y",
+      "width_m": 36,
+      "height_m": 12,
+      "link": "p1a",
+      "inverting": false,
+      "starts_open": true
+    }
+  ],
+  "tee": {
+    "room": "tee_chamber",
+    "position": [
+      0,
+      0,
+      0
+    ]
+  },
+  "flag": {
+    "room": "crosswind_hall",
+    "position": [
+      0,
+      0,
+      -33
+    ]
+  },
+  "buttons": [],
+  "portal_discs": [],
+  "allowed_discs": [
+    {
+      "id": "roc",
+      "count": -1
+    },
+    {
+      "id": "buzzz",
+      "count": -1
+    }
+  ],
+  "objective": {
+    "type": "closest_to_flag",
+    "max_discs": 1
+  },
+  "medals": {
+    "gold": {
+      "max_discs": 1,
+      "max_flag_distance_m": 3.0
+    },
+    "silver": {
+      "max_discs": 1,
+      "max_flag_distance_m": 8.0
+    },
+    "bronze": {
+      "max_discs": 1,
+      "max_flag_distance_m": 18.0
+    }
+  },
+  "intended_solution": [
+    {
+      "role": "score",
+      "disc": "roc",
+      "speed_mps": 20,
+      "spin_rps": 18,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 10,
+      "heading_deg": 20,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "crosswind_hall",
+        "landing": [
+          -0.96,
+          0.0,
+          -33.03
+        ],
+        "flag_distance_m": 0.963,
+        "flight_time_s": 4.358,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "alternate_solutions": [
+    {
+      "role": "score",
+      "disc": "buzzz",
+      "speed_mps": 20,
+      "spin_rps": 18,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 10,
+      "heading_deg": 13,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "crosswind_hall",
+        "landing": [
+          0.06,
+          0.0,
+          -37.51
+        ],
+        "flag_distance_m": 4.509,
+        "flight_time_s": 5.243,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "validation": {
+    "method": "tools/aero/validate.py reference integrator, dt=1/240, via portal_sim.py",
+    "do_nothing_baseline_m": 17.52,
+    "baked": {
+      "harness": "tools/aero/validate.py reference integrator via portal_sim.py, dt=1/240",
+      "intended": {
+        "discs": 1,
+        "flag_distance_m": 0.963,
+        "medal": "gold"
+      }
+    }
+  }
+}

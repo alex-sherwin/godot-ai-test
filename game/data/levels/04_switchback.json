@@ -1,0 +1,324 @@
+{
+  "schema": 1,
+  "id": "04_switchback",
+  "order": 4,
+  "name": "Switchback",
+  "concept": "Chain three small rooms into one long flight. A yaw portal is free; the wind on the other side is not.",
+  "hint": "A portal that only turns you sideways costs your flight nothing - what changes is which way each room's wind blows across it.",
+  "teaches": [
+    "portal chaining",
+    "aperture threading"
+  ],
+  "rooms": [
+    {
+      "id": "start_bay",
+      "name": "Start Bay",
+      "bounds": {
+        "x": [
+          -22,
+          22
+        ],
+        "y": [
+          0,
+          15
+        ],
+        "z": [
+          -20,
+          10
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        0.0,
+        0.0,
+        -4.0
+      ]
+    },
+    {
+      "id": "east_gallery",
+      "name": "East Gallery",
+      "bounds": {
+        "x": [
+          -15,
+          15
+        ],
+        "y": [
+          0,
+          15
+        ],
+        "z": [
+          -20,
+          20
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          -6
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15,
+        "note": "6 m/s along -Z; you fly +X through here, so it is a left-hand crosswind"
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        77.0,
+        0.0,
+        -9.0
+      ]
+    },
+    {
+      "id": "north_run",
+      "name": "North Run",
+      "bounds": {
+        "x": [
+          -35,
+          35
+        ],
+        "y": [
+          0,
+          20
+        ],
+        "z": [
+          -80,
+          16
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          6,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15,
+        "note": "6 m/s toward +X; you fly -Z here, so it pushes right"
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        167.0,
+        0.0,
+        23.0
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "p1a",
+      "room": "start_bay",
+      "center": [
+        0,
+        6,
+        -20
+      ],
+      "facing": "+z",
+      "up": "+y",
+      "width_m": 18,
+      "height_m": 12,
+      "link": "p1b",
+      "inverting": false,
+      "starts_open": true
+    },
+    {
+      "id": "p1b",
+      "room": "east_gallery",
+      "center": [
+        -15,
+        6,
+        0
+      ],
+      "facing": "+x",
+      "up": "+y",
+      "width_m": 18,
+      "height_m": 12,
+      "link": "p1a",
+      "inverting": false,
+      "starts_open": true
+    },
+    {
+      "id": "p2a",
+      "room": "east_gallery",
+      "center": [
+        15,
+        6,
+        0
+      ],
+      "facing": "-x",
+      "up": "+y",
+      "width_m": 24,
+      "height_m": 14,
+      "link": "p2b",
+      "inverting": false,
+      "starts_open": true
+    },
+    {
+      "id": "p2b",
+      "room": "north_run",
+      "center": [
+        0,
+        6,
+        16
+      ],
+      "facing": "-z",
+      "up": "+y",
+      "width_m": 24,
+      "height_m": 14,
+      "link": "p2a",
+      "inverting": false,
+      "starts_open": true
+    }
+  ],
+  "tee": {
+    "room": "start_bay",
+    "position": [
+      0,
+      0,
+      4
+    ]
+  },
+  "flag": {
+    "room": "north_run",
+    "position": [
+      0,
+      0,
+      -14
+    ]
+  },
+  "buttons": [],
+  "portal_discs": [],
+  "allowed_discs": [
+    {
+      "id": "fd",
+      "count": -1
+    },
+    {
+      "id": "teebird",
+      "count": -1
+    },
+    {
+      "id": "undertaker",
+      "count": -1
+    },
+    {
+      "id": "wraith",
+      "count": -1
+    }
+  ],
+  "objective": {
+    "type": "closest_to_flag",
+    "max_discs": 1
+  },
+  "medals": {
+    "gold": {
+      "max_discs": 1,
+      "max_flag_distance_m": 4.0
+    },
+    "silver": {
+      "max_discs": 1,
+      "max_flag_distance_m": 10.0
+    },
+    "bronze": {
+      "max_discs": 1,
+      "max_flag_distance_m": 25.0,
+      "note": "reaching North Run at all"
+    }
+  },
+  "intended_solution": [
+    {
+      "role": "score",
+      "disc": "fd",
+      "speed_mps": 24,
+      "spin_rps": 22,
+      "nose_deg": 0.0,
+      "hyzer_deg": 4,
+      "launch_deg": 8,
+      "heading_deg": -2,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "north_run",
+        "landing": [
+          -1.24,
+          0.0,
+          -11.87
+        ],
+        "flag_distance_m": 2.46,
+        "flight_time_s": 6.51,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "alternate_solutions": [
+    {
+      "role": "score",
+      "disc": "teebird",
+      "speed_mps": 23,
+      "spin_rps": 20,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 8,
+      "heading_deg": 10,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "north_run",
+        "landing": [
+          0.34,
+          0.0,
+          -10.04
+        ],
+        "flag_distance_m": 3.976,
+        "flight_time_s": 5.495,
+        "outcome": "floor"
+      }
+    },
+    {
+      "role": "score",
+      "disc": "wraith",
+      "speed_mps": 27,
+      "spin_rps": 25,
+      "nose_deg": 0.0,
+      "hyzer_deg": 15,
+      "launch_deg": 12,
+      "heading_deg": -5,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "north_run",
+        "landing": [
+          -1.35,
+          0.0,
+          -9.85
+        ],
+        "flag_distance_m": 4.367,
+        "flight_time_s": 7.295,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "validation": {
+    "failure_mode": "fd at heading +10 misses the second portal and splats on the gallery's +X wall",
+    "design_note": "p2a/p2b widened from 18x12 to 24x14. The miss is still a wall splat, but the window is wide enough to aim at rather than to guess.",
+    "baked": {
+      "harness": "tools/aero/validate.py reference integrator via portal_sim.py, dt=1/240",
+      "intended": {
+        "discs": 1,
+        "flag_distance_m": 2.46,
+        "medal": "gold"
+      }
+    }
+  }
+}

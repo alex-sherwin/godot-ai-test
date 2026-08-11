@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "note": "menu order. Every level is playable from the start; medals are per level.",
+  "levels": [
+    "01_crosswind_hall",
+    "02_rarefied_vault",
+    "03_featherfall",
+    "04_switchback",
+    "05_two_keys",
+    "06_the_blank_wall",
+    "07_windward_placement",
+    "08_the_drop",
+    "09_under_the_lintel",
+    "10_the_gauntlet"
+  ]
+}

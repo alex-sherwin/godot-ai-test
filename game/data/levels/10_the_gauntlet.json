@@ -1,0 +1,419 @@
+{
+  "schema": 1,
+  "id": "10_the_gauntlet",
+  "order": 10,
+  "name": "The Gauntlet",
+  "concept": "Thin air, a button, a portal to place, a shutter to open and a dive to finish. Two discs if you find the line that does two jobs.",
+  "hint": "The button and the panel are on the same line - a Destroyer that keeps its bank through thin air can arm the shutter and open the portal with one throw.",
+  "teaches": [
+    "everything"
+  ],
+  "portal_disc_convention": "Fixed inverting exit portal in the Cistern; the player places the entry portal on the span panel with one portal disc.",
+  "rooms": [
+    {
+      "id": "tee_chamber",
+      "name": "Tee Chamber",
+      "bounds": {
+        "x": [
+          -30,
+          30
+        ],
+        "y": [
+          0,
+          20
+        ],
+        "z": [
+          -30,
+          12
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "rarefied_span",
+      "name": "Rarefied Span",
+      "bounds": {
+        "x": [
+          -60,
+          60
+        ],
+        "y": [
+          0,
+          30
+        ],
+        "z": [
+          -65,
+          4
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 5500,
+        "temperature_c": -20,
+        "note": "0.695 kg/m^3 - your hyzer will not stand back up here"
+      },
+      "surfaces": [
+        {
+          "id": "span_plain_l",
+          "plane": {
+            "axis": "z",
+            "value": -65
+          },
+          "normal": "+z",
+          "rect": {
+            "x": [
+              -60,
+              6
+            ],
+            "y": [
+              0,
+              30
+            ]
+          },
+          "portalable": false
+        },
+        {
+          "id": "span_panel",
+          "plane": {
+            "axis": "z",
+            "value": -65
+          },
+          "normal": "+z",
+          "rect": {
+            "x": [
+              6,
+              42
+            ],
+            "y": [
+              2,
+              20
+            ]
+          },
+          "portalable": true
+        },
+        {
+          "id": "span_plain_r",
+          "plane": {
+            "axis": "z",
+            "value": -65
+          },
+          "normal": "+z",
+          "rect": {
+            "x": [
+              42,
+              60
+            ],
+            "y": [
+              0,
+              30
+            ]
+          },
+          "portalable": false
+        }
+      ],
+      "barriers": [],
+      "world_origin": [
+        130.0,
+        0.0,
+        21.5
+      ]
+    },
+    {
+      "id": "cistern",
+      "name": "The Cistern",
+      "bounds": {
+        "x": [
+          -30,
+          30
+        ],
+        "y": [
+          0,
+          18
+        ],
+        "z": [
+          -36,
+          4
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          -4,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15,
+        "note": "4 m/s toward -X"
+      },
+      "surfaces": [],
+      "barriers": [
+        {
+          "id": "shutter",
+          "box": {
+            "x": [
+              -30,
+              30
+            ],
+            "y": [
+              0,
+              18
+            ],
+            "z": [
+              -15,
+              -13
+            ]
+          },
+          "starts_solid": true,
+          "opened_by": [
+            "release"
+          ],
+          "opens_between_throws": true
+        }
+      ],
+      "world_origin": [
+        260.0,
+        0.0,
+        7.0
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "p1a",
+      "room": "tee_chamber",
+      "center": [
+        0,
+        6,
+        -30
+      ],
+      "facing": "+z",
+      "up": "+y",
+      "width_m": 30,
+      "height_m": 12,
+      "link": "p1b",
+      "inverting": false,
+      "starts_open": true
+    },
+    {
+      "id": "p1b",
+      "room": "rarefied_span",
+      "center": [
+        0,
+        6,
+        4
+      ],
+      "facing": "-z",
+      "up": "+y",
+      "width_m": 30,
+      "height_m": 12,
+      "link": "p1a",
+      "inverting": false,
+      "starts_open": true
+    },
+    {
+      "id": "exit_fixed",
+      "room": "cistern",
+      "center": [
+        0,
+        8,
+        4
+      ],
+      "facing": "-z",
+      "up": "+y",
+      "width_m": 12,
+      "height_m": 10,
+      "link": "placed_a",
+      "inverting": true,
+      "starts_open": true
+    }
+  ],
+  "tee": {
+    "room": "tee_chamber",
+    "position": [
+      0,
+      0,
+      0
+    ]
+  },
+  "flag": {
+    "room": "cistern",
+    "position": [
+      0,
+      0,
+      -26
+    ]
+  },
+  "buttons": [
+    {
+      "id": "release",
+      "room": "rarefied_span",
+      "center": [
+        13.2,
+        8.2,
+        -44.2
+      ],
+      "radius_m": 3.5,
+      "unlocks": [
+        "shutter"
+      ]
+    }
+  ],
+  "portal_discs": [
+    {
+      "id": "portal_a",
+      "count": 1,
+      "inverting": false,
+      "opens_portal_id": "placed_a",
+      "link": "exit_fixed",
+      "width_m": 14,
+      "height_m": 12
+    }
+  ],
+  "allowed_discs": [
+    {
+      "id": "destroyer",
+      "count": -1
+    },
+    {
+      "id": "teebird",
+      "count": -1
+    },
+    {
+      "id": "roc",
+      "count": -1
+    },
+    {
+      "id": "leopard",
+      "count": -1
+    }
+  ],
+  "objective": {
+    "type": "min_discs_then_closest",
+    "requires_buttons": [
+      "release"
+    ],
+    "max_discs": 5
+  },
+  "medals": {
+    "gold": {
+      "max_discs": 2,
+      "max_flag_distance_m": 5.0
+    },
+    "silver": {
+      "max_discs": 3,
+      "max_flag_distance_m": 9.0
+    },
+    "bronze": {
+      "max_discs": 4,
+      "max_flag_distance_m": 20.0
+    }
+  },
+  "intended_solution": [
+    {
+      "role": "arm+place_portal_a",
+      "disc": "destroyer",
+      "speed_mps": 27,
+      "spin_rps": 25,
+      "nose_deg": 0.0,
+      "hyzer_deg": 10,
+      "launch_deg": 13,
+      "heading_deg": 0.0,
+      "release_height_m": 1.4,
+      "expected": {
+        "surface": "span_panel",
+        "impact": [
+          21.34,
+          4.88,
+          -65.0
+        ],
+        "portal_center": [
+          21.34,
+          8.0,
+          -65.0
+        ],
+        "flight_time_s": 5.911,
+        "outcome": "surface:span_panel"
+      }
+    },
+    {
+      "role": "score",
+      "disc": "destroyer",
+      "speed_mps": 27,
+      "spin_rps": 25,
+      "nose_deg": 0.0,
+      "hyzer_deg": 6,
+      "launch_deg": 19,
+      "heading_deg": -4,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "cistern",
+        "landing": [
+          -1.45,
+          0.0,
+          -26.66
+        ],
+        "flag_distance_m": 1.592,
+        "flight_time_s": 10.997,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "alternate_solutions": [
+    {
+      "role": "score",
+      "disc": "destroyer",
+      "speed_mps": 27,
+      "spin_rps": 25,
+      "nose_deg": 0.0,
+      "hyzer_deg": 10,
+      "launch_deg": 16,
+      "heading_deg": 4,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "cistern",
+        "landing": [
+          -1.62,
+          0.0,
+          -25.42
+        ],
+        "flag_distance_m": 1.725,
+        "flight_time_s": 10.866,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "validation": {
+    "lines_that_reach_the_cistern": 18,
+    "failure_mode": "with the shutter shut the scoring disc stops on it 17 m short",
+    "baked": {
+      "harness": "tools/aero/validate.py reference integrator via portal_sim.py, dt=1/240",
+      "intended": {
+        "discs": 2,
+        "flag_distance_m": 1.592,
+        "medal": "gold"
+      }
+    }
+  }
+}

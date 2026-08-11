@@ -1,0 +1,248 @@
+{
+  "schema": 1,
+  "id": "03_featherfall",
+  "order": 3,
+  "name": "Featherfall",
+  "concept": "Gravity sets flight time, and flight time is what turn and fade are made of.",
+  "hint": "Low gravity does not change the curve - it just gives the curve three times as long to happen.",
+  "teaches": [
+    "gravity",
+    "ceiling constraint"
+  ],
+  "rooms": [
+    {
+      "id": "tee_chamber",
+      "name": "Tee Chamber",
+      "bounds": {
+        "x": [
+          -30,
+          30
+        ],
+        "y": [
+          0,
+          16
+        ],
+        "z": [
+          -20,
+          12
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "featherfall",
+      "name": "Featherfall",
+      "bounds": {
+        "x": [
+          -70,
+          70
+        ],
+        "y": [
+          0,
+          14
+        ],
+        "z": [
+          -150,
+          4
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 4.0,
+        "altitude_m": 0,
+        "temperature_c": 15,
+        "note": "0.41 g. Ceiling at 14 m is solid - a lofted line is dead."
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        140.0,
+        0.0,
+        69.0
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "p1a",
+      "room": "tee_chamber",
+      "center": [
+        0,
+        6,
+        -20
+      ],
+      "facing": "+z",
+      "up": "+y",
+      "width_m": 36,
+      "height_m": 12,
+      "link": "p1b",
+      "inverting": false,
+      "starts_open": true
+    },
+    {
+      "id": "p1b",
+      "room": "featherfall",
+      "center": [
+        0,
+        6,
+        4
+      ],
+      "facing": "-z",
+      "up": "+y",
+      "width_m": 36,
+      "height_m": 12,
+      "link": "p1a",
+      "inverting": false,
+      "starts_open": true
+    }
+  ],
+  "tee": {
+    "room": "tee_chamber",
+    "position": [
+      0,
+      0,
+      0
+    ]
+  },
+  "flag": {
+    "room": "featherfall",
+    "position": [
+      0,
+      0,
+      -95
+    ]
+  },
+  "buttons": [],
+  "portal_discs": [],
+  "allowed_discs": [
+    {
+      "id": "buzzz",
+      "count": -1
+    },
+    {
+      "id": "zone",
+      "count": -1
+    },
+    {
+      "id": "aviar",
+      "count": -1
+    }
+  ],
+  "objective": {
+    "type": "closest_to_flag",
+    "max_discs": 1
+  },
+  "medals": {
+    "gold": {
+      "max_discs": 1,
+      "max_flag_distance_m": 4.0
+    },
+    "silver": {
+      "max_discs": 1,
+      "max_flag_distance_m": 10.0
+    },
+    "bronze": {
+      "max_discs": 1,
+      "max_flag_distance_m": 25.0
+    }
+  },
+  "intended_solution": [
+    {
+      "role": "score",
+      "disc": "buzzz",
+      "speed_mps": 22,
+      "spin_rps": 20,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 6,
+      "heading_deg": -12,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "featherfall",
+        "landing": [
+          -0.01,
+          0.0,
+          -92.4
+        ],
+        "flag_distance_m": 2.598,
+        "flight_time_s": 9.954,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "alternate_solutions": [
+    {
+      "role": "score",
+      "disc": "buzzz",
+      "speed_mps": 22,
+      "spin_rps": 20,
+      "nose_deg": 0.0,
+      "hyzer_deg": 3,
+      "launch_deg": 10,
+      "heading_deg": -4,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "featherfall",
+        "landing": [
+          3.79,
+          0.0,
+          -95.91
+        ],
+        "flag_distance_m": 3.902,
+        "flight_time_s": 13.051,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "validation": {
+    "do_nothing_baseline_m": 24.54,
+    "decoys": {
+      "zone": 47.32,
+      "aviar": "~50 m short - cannot reach"
+    },
+    "disc_reachability": {
+      "note": "Measured at each disc's category speed cap. The design doc's 'dead disc' figures were taken at a single speed per disc and do not survive the speed slider.",
+      "buzzz": {
+        "line": "22 m/s, 20 rev/s, hyzer 3, launch 6, aim -12",
+        "flag_distance_m": 2.6
+      },
+      "zone": {
+        "line": "24 m/s (category cap), 18 rev/s, hyzer 0, launch 10, aim +12",
+        "flag_distance_m": 1.89,
+        "at_20_mps": "31.9 m short at launch 6 - which is where the '47 m short' claim came from"
+      },
+      "aviar": {
+        "line": "22 m/s (category cap), 16 rev/s, hyzer -3, launch 6, aim -6",
+        "flag_distance_m": 2.94
+      }
+    },
+    "baked": {
+      "harness": "tools/aero/validate.py reference integrator via portal_sim.py, dt=1/240",
+      "intended": {
+        "discs": 1,
+        "flag_distance_m": 2.598,
+        "medal": "gold"
+      }
+    }
+  }
+}

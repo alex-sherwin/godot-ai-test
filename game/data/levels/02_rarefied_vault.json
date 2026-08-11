@@ -1,0 +1,224 @@
+{
+  "schema": 1,
+  "id": "02_rarefied_vault",
+  "order": 2,
+  "name": "The Rarefied Vault",
+  "concept": "Air density is the gain on turn and fade. Thin air cannot stand a hyzer release back up.",
+  "hint": "Thin air is weak air: it cannot stand your disc back up, so the bank you release with is the bank you keep.",
+  "teaches": [
+    "air density"
+  ],
+  "rooms": [
+    {
+      "id": "tee_chamber",
+      "name": "Tee Chamber",
+      "bounds": {
+        "x": [
+          -30,
+          30
+        ],
+        "y": [
+          0,
+          16
+        ],
+        "z": [
+          -20,
+          12
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 0,
+        "temperature_c": 15
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "thin_vault",
+      "name": "Rarefied Vault",
+      "bounds": {
+        "x": [
+          -80,
+          80
+        ],
+        "y": [
+          0,
+          35
+        ],
+        "z": [
+          -170,
+          4
+        ]
+      },
+      "environment": {
+        "wind_mps": [
+          0,
+          0,
+          0
+        ],
+        "gravity_mps2": 9.81,
+        "altitude_m": 5500,
+        "temperature_c": -20,
+        "note": "ISA 5500 m at -20 C -> 0.695 kg/m^3"
+      },
+      "surfaces": [],
+      "barriers": [],
+      "world_origin": [
+        150.0,
+        0.0,
+        79.0
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "p1a",
+      "room": "tee_chamber",
+      "center": [
+        0,
+        6,
+        -20
+      ],
+      "facing": "+z",
+      "up": "+y",
+      "width_m": 36,
+      "height_m": 12,
+      "link": "p1b",
+      "inverting": false,
+      "starts_open": true
+    },
+    {
+      "id": "p1b",
+      "room": "thin_vault",
+      "center": [
+        0,
+        6,
+        4
+      ],
+      "facing": "-z",
+      "up": "+y",
+      "width_m": 36,
+      "height_m": 12,
+      "link": "p1a",
+      "inverting": false,
+      "starts_open": true
+    }
+  ],
+  "tee": {
+    "room": "tee_chamber",
+    "position": [
+      0,
+      0,
+      0
+    ]
+  },
+  "flag": {
+    "room": "thin_vault",
+    "position": [
+      0,
+      0,
+      -88
+    ]
+  },
+  "buttons": [],
+  "portal_discs": [],
+  "allowed_discs": [
+    {
+      "id": "destroyer",
+      "count": -1
+    },
+    {
+      "id": "undertaker",
+      "count": -1
+    }
+  ],
+  "objective": {
+    "type": "closest_to_flag",
+    "max_discs": 1
+  },
+  "medals": {
+    "gold": {
+      "max_discs": 1,
+      "max_flag_distance_m": 4.0
+    },
+    "silver": {
+      "max_discs": 1,
+      "max_flag_distance_m": 12.0
+    },
+    "bronze": {
+      "max_discs": 1,
+      "max_flag_distance_m": 25.0
+    }
+  },
+  "intended_solution": [
+    {
+      "role": "score",
+      "disc": "destroyer",
+      "speed_mps": 27,
+      "spin_rps": 25,
+      "nose_deg": 0.0,
+      "hyzer_deg": 10,
+      "launch_deg": 13,
+      "heading_deg": 0.0,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "thin_vault",
+        "landing": [
+          1.25,
+          0.0,
+          -87.89
+        ],
+        "flag_distance_m": 1.254,
+        "flight_time_s": 7.124,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "alternate_solutions": [
+    {
+      "role": "score",
+      "disc": "undertaker",
+      "speed_mps": 26,
+      "spin_rps": 24,
+      "nose_deg": 0.0,
+      "hyzer_deg": -3,
+      "launch_deg": 10,
+      "heading_deg": 0.0,
+      "release_height_m": 1.4,
+      "expected": {
+        "room": "thin_vault",
+        "landing": [
+          3.33,
+          0.0,
+          -76.5
+        ],
+        "flag_distance_m": 11.975,
+        "flight_time_s": 5.955,
+        "outcome": "floor"
+      }
+    }
+  ],
+  "validation": {
+    "do_nothing_baseline_m": 28.19,
+    "note": "22 deg hyzer is the shipped distance-driver default; it hooks 25 m left here.",
+    "baked": {
+      "harness": "tools/aero/validate.py reference integrator via portal_sim.py, dt=1/240",
+      "intended": {
+        "discs": 1,
+        "flag_distance_m": 1.254,
+        "medal": "gold"
+      }
+    }
+  }
+}
