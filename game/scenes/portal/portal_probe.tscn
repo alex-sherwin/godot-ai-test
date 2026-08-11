@@ -1,0 +1,20 @@
+[gd_scene load_steps=2 format=3]
+
+; The portal feasibility probe. Deliberately thin: `portal_probe.gd` builds the
+; rooms, the portals, the viewport pool and the camera stations in code, the
+; same way `main.tscn` delegates to `flight_app.gd`.
+;
+; This scene is NOT reachable from `main.tscn` and is not part of the shipped
+; sandbox. It exists to be run directly --
+;
+;     godot --path game res://scenes/portal/portal_probe.tscn
+;
+; -- or to be pointed at by `run/main_scene` for an export that a headless
+; browser can drive. There is no WorldEnvironment here on purpose: every room
+; carries its own Environment and the camera is given the one for the room it
+; is standing in, which is the mechanism being tested.
+
+[ext_resource type="Script" path="res://scripts/portal/portal_probe.gd" id="1_probe"]
+
+[node name="PortalProbe" type="Node3D"]
+script = ExtResource("1_probe")
