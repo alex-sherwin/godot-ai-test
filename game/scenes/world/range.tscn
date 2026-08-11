@@ -1,0 +1,70 @@
+[gd_scene load_steps=4 format=3]
+
+; The measured test range. Everything on the ground is built procedurally by
+; range_world.gd; what lives here is the lighting and the environment, because
+; those are declarative and worth being able to see and tune in one place.
+;
+; RENDERER: GL Compatibility (WebGL2). No SDFGI, no SSAO/SSIL, no SSR, no
+; volumetric fog and no glow — none of them exist in Compatibility, and a
+; Forward+ setting exports without warning and then does nothing in a browser.
+; Sky background, sky ambient, filmic tonemap and non-volumetric fog are all
+; supported and are what this uses.
+
+[ext_resource type="Script" path="res://scripts/app/range_world.gd" id="1_range"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
+sky_top_color = Color(0.196, 0.376, 0.62, 1)
+sky_horizon_color = Color(0.663, 0.757, 0.843, 1)
+sky_curve = 0.12
+ground_bottom_color = Color(0.153, 0.196, 0.196, 1)
+ground_horizon_color = Color(0.663, 0.757, 0.843, 1)
+ground_curve = 0.02
+sun_angle_max = 18.0
+sun_curve = 0.08
+
+[sub_resource type="Sky" id="Sky"]
+sky_material = SubResource("SkyMat")
+
+[sub_resource type="Environment" id="Env"]
+background_mode = 2
+sky = SubResource("Sky")
+ambient_light_source = 3
+ambient_light_color = Color(0.6, 0.694, 0.812, 1)
+ambient_light_sky_contribution = 1.0
+ambient_light_energy = 0.85
+reflected_light_source = 2
+tonemap_mode = 2
+tonemap_exposure = 1.05
+tonemap_white = 1.0
+fog_enabled = true
+fog_mode = 0
+fog_light_color = Color(0.702, 0.769, 0.847, 1)
+fog_light_energy = 1.0
+fog_sun_scatter = 0.08
+fog_density = 0.0008
+fog_aerial_perspective = 0.0
+fog_sky_affect = 0.3
+fog_height = 40.0
+fog_height_density = 0.0
+
+[node name="Range" type="Node3D"]
+script = ExtResource("1_range")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env")
+
+; Sun from high on the thrower's left, so downrange faces are lit and shadows
+; fall across the lane where they read against the gridlines. Basis columns are
+; X, Y, Z; the light shines along -Z, i.e. toward (0.45, -0.72, -0.53).
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.7623, 0, 0.6472, 0.4656, 0.6946, -0.5484, -0.4496, 0.7194, 0.5295, 0, 40, -40)
+light_color = Color(1, 0.968, 0.914, 1)
+light_energy = 1.35
+light_angular_distance = 0.5
+shadow_enabled = true
+shadow_bias = 0.06
+shadow_normal_bias = 1.5
+directional_shadow_mode = 1
+directional_shadow_split_1 = 0.12
+directional_shadow_max_distance = 120.0
+directional_shadow_fade_start = 0.85

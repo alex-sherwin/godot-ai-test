@@ -1,146 +1,18 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+; run/main_scene. The export preset and CI both key off this path, so it stays
+; here (README "the aero pipeline seam").
+;
+; Deliberately thin: FlightApp owns the simulation loop and builds the disc,
+; cameras, trails, vector overlay, wind and HUD in code, because all of them are
+; procedural and none of them are worth hand-maintaining as scene data. The
+; range is a real scene instance because its lighting and environment ARE worth
+; being able to open and look at.
 
-[sub_resource type="ProceduralSkyMaterial" id="SkyMaterial_1"]
-sky_top_color = Color(0.17, 0.36, 0.62, 1)
-sky_horizon_color = Color(0.62, 0.73, 0.83, 1)
-ground_bottom_color = Color(0.09, 0.11, 0.13, 1)
-ground_horizon_color = Color(0.62, 0.73, 0.83, 1)
-sun_angle_max = 24.0
-
-[sub_resource type="Sky" id="Sky_1"]
-sky_material = SubResource("SkyMaterial_1")
-
-[sub_resource type="Environment" id="Environment_1"]
-background_mode = 2
-sky = SubResource("Sky_1")
-ambient_light_source = 3
-ambient_light_energy = 0.35
-reflected_light_source = 2
-tonemap_mode = 2
-tonemap_exposure = 0.9
-fog_enabled = true
-fog_light_color = Color(0.6, 0.7, 0.82, 1)
-fog_density = 0.0006
-
-[sub_resource type="StandardMaterial3D" id="Material_ground"]
-albedo_color = Color(0.13, 0.24, 0.11, 1)
-roughness = 0.95
-
-[sub_resource type="PlaneMesh" id="Mesh_ground"]
-material = SubResource("Material_ground")
-size = Vector2(400, 400)
-
-[sub_resource type="StandardMaterial3D" id="Material_fairway"]
-albedo_color = Color(0.22, 0.36, 0.16, 1)
-roughness = 0.95
-
-[sub_resource type="PlaneMesh" id="Mesh_fairway"]
-material = SubResource("Material_fairway")
-size = Vector2(18, 110)
-
-[sub_resource type="StandardMaterial3D" id="Material_concrete"]
-albedo_color = Color(0.55, 0.55, 0.56, 1)
-roughness = 0.9
-
-[sub_resource type="BoxMesh" id="Mesh_tee"]
-material = SubResource("Material_concrete")
-size = Vector3(3, 0.16, 4)
-
-[sub_resource type="StandardMaterial3D" id="Material_metal"]
-albedo_color = Color(0.62, 0.64, 0.68, 1)
-metallic = 0.7
-roughness = 0.35
-
-[sub_resource type="CylinderMesh" id="Mesh_pole"]
-material = SubResource("Material_metal")
-top_radius = 0.06
-bottom_radius = 0.06
-height = 1.5
-
-[sub_resource type="CylinderMesh" id="Mesh_basket"]
-material = SubResource("Material_metal")
-top_radius = 0.33
-bottom_radius = 0.28
-height = 0.3
+[ext_resource type="Script" path="res://scripts/app/flight_app.gd" id="1_app"]
+[ext_resource type="PackedScene" path="res://scenes/world/range.tscn" id="2_range"]
 
 [node name="Main" type="Node3D"]
-script = ExtResource("1_main")
+script = ExtResource("1_app")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_1")
-
-[node name="Sun" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.86, 0.35, -0.37, 0, 0.72, 0.69, 0.51, -0.6, 0.62, 0, 20, 0)
-light_energy = 1.1
-shadow_enabled = true
-
-[node name="Ground" type="MeshInstance3D" parent="."]
-mesh = SubResource("Mesh_ground")
-
-[node name="Fairway" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.01, -45)
-mesh = SubResource("Mesh_fairway")
-
-[node name="TeePad" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 2)
-mesh = SubResource("Mesh_tee")
-
-[node name="Basket" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -88)
-
-[node name="Pole" type="MeshInstance3D" parent="Basket"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
-mesh = SubResource("Mesh_pole")
-
-[node name="Cage" type="MeshInstance3D" parent="Basket"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, 0)
-mesh = SubResource("Mesh_basket")
-
-[node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 9, 8)
-fov = 60.0
-far = 600.0
-
-[node name="UI" type="CanvasLayer" parent="."]
-
-[node name="Panel" type="VBoxContainer" parent="UI"]
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -320.0
-offset_top = -70.0
-offset_right = 320.0
-offset_bottom = 70.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/separation = 10
-
-[node name="Title" type="Label" parent="UI/Panel"]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.65)
-theme_override_constants/shadow_offset_y = 2
-theme_override_font_sizes/font_size = 40
-text = "Disc Golf Flight Lab"
-horizontal_alignment = 1
-
-[node name="Status" type="Label" parent="UI/Panel"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.78, 0.87, 1, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.65)
-theme_override_constants/shadow_offset_y = 1
-theme_override_font_sizes/font_size = 20
-text = "Flight model under construction"
-horizontal_alignment = 1
-
-[node name="Hint" type="Label" parent="UI/Panel"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.72, 0.78, 0.86, 0.85)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.55)
-theme_override_font_sizes/font_size = 15
-text = "Placeholder scene — the export and deploy pipeline is live."
-horizontal_alignment = 1
+[node name="Range" parent="." instance=ExtResource("2_range")]
