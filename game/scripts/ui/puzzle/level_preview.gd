@@ -185,13 +185,17 @@ func build(level: LevelDataT, world: WorldT) -> void:
 	_static_wire = _attach(wire, true)
 
 	_build_buttons()
-	rebuild_dynamic()
+	rebuild_dynamic(false)
 
 
 ## Portals and barriers change between throws — a button opens a gate, a portal
 ## disc opens an aperture — so they are their own meshes and are rebuilt rather
 ## than baked into the static geometry.
-func rebuild_dynamic() -> void:
+## `rebuild_stage` is false only when `build()` calls this, because `build()` has
+## just cut every aperture already: rebuilding there would free and re-register
+## every portal, which costs the renderer its warm SubViewports and shows as a
+## flicker on the first frame of a level.
+func rebuild_dynamic(rebuild_stage: bool = true) -> void:
 	if _barrier_node != null:
 		_barrier_node.queue_free()
 		_barrier_node = null
@@ -199,9 +203,10 @@ func rebuild_dynamic() -> void:
 		return
 	# The apertures are `PortalStage`'s now — a placed portal is a real hole in a
 	# real wall, so re-cutting the room shells is part of this.
-	stage.rebuild_portals()
-	for e in stage.problems:
-		push_warning("PortalStage: %s" % e)
+	if rebuild_stage:
+		stage.rebuild_portals()
+		for e in stage.problems:
+			push_warning("PortalStage: %s" % e)
 
 	var barriers := SurfaceTool.new()
 	barriers.begin(Mesh.PRIMITIVE_TRIANGLES)

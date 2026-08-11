@@ -101,6 +101,21 @@ func _ready() -> void:
 		renderer.attach_main_camera(_camera)
 
 
+## `remove_child` BEFORE `queue_free`, and this is not defensive tidying.
+## `queue_free` defers deletion to the end of the frame, so a node freed that way
+## is still a child while the replacements are added — which means the old
+## aperture is still drawn for a frame, and Godot renames the new node to avoid
+## the name collision. That renaming is how this was found: the diagnostic line
+## reported `@Node3D@443` instead of `Portal_p1a` after a rebuild.
+static func _drop(n: Node) -> void:
+	if n == null or not is_instance_valid(n):
+		return
+	var parent := n.get_parent()
+	if parent != null:
+		parent.remove_child(n)
+	n.queue_free()
+
+
 ## The main camera. Also fixes its cull mask so it sees live apertures and not
 ## the flat depth-1 stand-ins.
 func attach_camera(cam: Camera3D) -> void:
@@ -127,9 +142,9 @@ func build(level: LevelDataT, world: WorldT) -> void:
 	if renderer != null:
 		renderer.clear_portals()
 	for r: PortalRoom in rooms:
-		r.queue_free()
+		_drop(r)
 	for p: Portal in portals:
-		p.queue_free()
+		_drop(p)
 	rooms.clear()
 	portals.clear()
 	environments.clear()
@@ -180,7 +195,7 @@ func rebuild_portals() -> void:
 	if renderer != null:
 		renderer.clear_portals()
 	for p: Portal in portals:
-		p.queue_free()
+		_drop(p)
 	portals.clear()
 	_by_id.clear()
 	for room: PortalRoom in rooms:

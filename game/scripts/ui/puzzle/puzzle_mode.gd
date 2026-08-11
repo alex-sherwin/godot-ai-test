@@ -335,6 +335,18 @@ func _land() -> void:
 	if record == null:
 		return
 
+	# The one line a headless browser can read a THROW off, and the puzzle-mode
+	# counterpart of `[FlightApp] landed ...`. Everything else about an attempt
+	# goes to the HUD, which is inside the canvas and therefore invisible to a
+	# driver — so before this, a browser could prove the level loaded and the
+	# portal rendered but not that a throw completed. Same shape as the sandbox's
+	# line on purpose: one grep serves both modes.
+	print("[PuzzleMode] landed level=%s disc=%s outcome=%s room=%d flag=%s t=%.2f s crossings=%d medal=%s" % [
+		_level.id, record.disc_id, record.outcome, record.end_room,
+		("%.2f m" % record.flag_distance_m) if record.flag_distance_m < INF else "none",
+		record.flight_time_s, record.crossings,
+		session.best_medal if session.best_medal != "" else "none"])
+
 	preview.add_flight_path(record.trajectory, T.ACCENT)
 	# A portal disc changes the geometry, and a barrier can open between throws,
 	# so the dynamic pass is rebuilt rather than assumed unchanged.
@@ -480,9 +492,14 @@ func _push_ghost() -> void:
 			# between a player who knows their one portal disc is aimed at a
 			# legal surface and a player who finds out by spending it.
 			overlay.ghost_end_portalable = ghost.end_portalable
+			# Kept short on purpose. `PuzzleAimOverlay._draw_tag` only keeps a
+			# plate inside the CANVAS, not clear of the HUD panels, and the
+			# ghost's terminus is routinely two thirds of the way across the
+			# screen — measured at 1280x720, where a 42-character label slid
+			# under the room-conditions panel and lost its last four words.
 			if ghost.end_portalable:
-				overlay.ghost_end_label = "PORTALABLE PANEL — a portal disc opens here" \
-					if _portal_disc_armed() else "PORTALABLE PANEL — arm a portal disc to use it"
+				overlay.ghost_end_label = "PORTALABLE — portal opens here" \
+					if _portal_disc_armed() else "PORTALABLE — arm a portal disc"
 			else:
 				overlay.ghost_end_label = "WALL — this line hits stone"
 		"barrier":

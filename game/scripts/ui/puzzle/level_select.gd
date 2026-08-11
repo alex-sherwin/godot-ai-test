@@ -148,13 +148,12 @@ func _update_more() -> void:
 	var bar := _scroll.get_v_scroll_bar()
 	var view_bottom: float = bar.value + _scroll.size.y
 	var hidden := 0
-	var first_hidden := ""
 	for id: String in _cards:
 		var card: PanelContainer = _cards[id]
+		# Half the card below the fold counts as hidden: a card showing only its
+		# top edge is not a card anyone reads, and it is the case the cue is for.
 		if card.position.y + card.size.y * 0.5 > view_bottom:
 			hidden += 1
-			if first_hidden.is_empty() or card.position.y < _cards[first_hidden].position.y:
-				first_hidden = id
 	if hidden <= 0:
 		_more.visible = false
 		return
