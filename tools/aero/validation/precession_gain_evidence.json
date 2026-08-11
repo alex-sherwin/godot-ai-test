@@ -1,21 +1,21 @@
 {
  "gain_1": {
   "precession_gain": 1.0,
-  "canonical_drive_distance_m": 102.1,
-  "canonical_drive_time_s": 7.93,
-  "canonical_drive_fade_back_m": 40.7,
-  "flat_drive_distance_m": 108.7,
-  "flat_drive_time_s": 7.28,
-  "understable_max_tilt_deg": 23.4
+  "canonical_drive_distance_m": 101.8,
+  "canonical_drive_time_s": 7.94,
+  "canonical_drive_fade_back_m": 39.7,
+  "flat_drive_distance_m": 106.4,
+  "flat_drive_time_s": 7.01,
+  "understable_max_tilt_deg": 23.9
  },
  "gain_2": {
   "precession_gain": 2.0,
-  "canonical_drive_distance_m": 111.4,
-  "canonical_drive_time_s": 8.29,
-  "canonical_drive_fade_back_m": 8.3,
-  "flat_drive_distance_m": 72.9,
-  "flat_drive_time_s": 3.81,
-  "understable_max_tilt_deg": 69.3
+  "canonical_drive_distance_m": 113.5,
+  "canonical_drive_time_s": 8.31,
+  "canonical_drive_fade_back_m": 6.3,
+  "flat_drive_distance_m": 71.9,
+  "flat_drive_time_s": 3.73,
+  "understable_max_tilt_deg": 70.6
  },
  "comment": "Gain 1.0 is the exact kinematics. It is not a near miss: the driver hangs ~2x too long and the understable disc never turns over. The gap is the missing spin-dependent aerodynamics (CRr), which the non-rotating CFD source cannot contain."
 }

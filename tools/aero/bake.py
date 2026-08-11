@@ -214,6 +214,10 @@ def bake(check_only: bool = False) -> int:
         (AERO_DIR / f"{tid}.json").write_text(json.dumps(t, indent=1) + "\n")
     (DATA_DIR / "discs.json").write_text(json.dumps(doc, indent=1) + "\n")
 
+    warned = [d["id"] for d in discs if d.get("geometry_warnings")]
+    if warned:
+        warnings.append(f"discs whose geometry produced warnings: {warned}")
+
     n_meas = len(doc["provenance_summary"]["measured"])
     print(f"baked {len(tables)} aero tables ({len(ALPHA_GRID)} alpha points each) "
           f"into {AERO_DIR}")

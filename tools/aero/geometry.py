@@ -86,6 +86,13 @@ DEFAULT_PLATE_THICKNESS_M = 0.0018
 # the geometry itself.
 _N_RADIAL = 2001
 
+#: Implied uniform density that a real disc golf mould can plausibly have.
+#: Base polypropylene/polyethylene blends run 870-950 kg/m^3 and premium blends
+#: with additives reach ~1050; the band is widened either side because this is a
+#: *model* quantity, sensitive to the assumed rim taper, not a material spec.
+#: The shipped roster spans 826-1107.
+PLASTIC_DENSITY_RANGE = (800.0, 1200.0)
+
 # CONTRACT §2 sanity ranges. Violations raise; near-violations are allowed but
 # the caller can inspect `warnings`.
 _LIMITS = {
@@ -253,9 +260,11 @@ def make_geometry(**kwargs) -> DiscGeometry:
     """Validate a parameter set and build a :class:`DiscGeometry`.
 
     Raises :class:`GeometryError` on anything that cannot be a real disc.
-    Soft oddities (an implied plastic density outside 800-1400 kg/m^3, say) are
-    recorded in ``.warnings`` rather than raised, because a user dragging a
-    slider in the UI should get feedback, not an exception.
+    Soft oddities -- an implied plastic density outside
+    ``PLASTIC_DENSITY_RANGE`` -- are recorded in ``.warnings`` rather than
+    raised, because a user dragging a slider in the UI should get feedback, not
+    an exception.  Every shipped disc is required to be warning-free; see
+    ``test_geometry.py::test_shipped_geometry_is_warning_free``.
     """
     missing = [k for k in _LIMITS if k not in kwargs]
     if missing:
@@ -280,21 +289,33 @@ def make_geometry(**kwargs) -> DiscGeometry:
 
     geom = DiscGeometry(**{k: float(v) for k, v in kwargs.items()})
 
-    warns: list[str] = []
-    if geom.rim_thickness_m > 2.0 * geom.parting_line_m:
-        warns.append(
-            "parting_line_m < half the rim wing thickness: the wing rests on "
-            "the ground plane and the parting line sits low on a flat-bottomed "
-            "wing (typical of very understable moulds)"
-        )
+    # The rim wing must fit inside the rim envelope. Note that it is NOT
+    # required to be centred on the parting line: real moulds are asymmetric
+    # about it, and on very understable discs the parting line sits low on a
+    # flat-bottomed wing. An earlier version rejected `rim_thickness_m >
+    # 2*parting_line_m` on the mistaken assumption of symmetry; that rule was
+    # wrong, not the Roadrunner it flagged.
     if geom.rim_thickness_m >= geom.rim_height_m:
-        warns.append("rim wing is as thick as the whole rim; profile is degenerate")
+        raise GeometryError(
+            f"rim_thickness_m ({geom.rim_thickness_m * 1000:.1f} mm) is thicker "
+            f"than the whole rim ({geom.rim_height_m * 1000:.1f} mm)"
+        )
+    wing_bottom = max(geom.parting_line_m - 0.5 * geom.rim_thickness_m, 0.0)
+    if wing_bottom + geom.rim_thickness_m > geom.rim_height_m + 1e-9:
+        raise GeometryError(
+            "rim wing extends above the flight plate: wing top at "
+            f"{(wing_bottom + geom.rim_thickness_m) * 1000:.1f} mm vs rim height "
+            f"{geom.rim_height_m * 1000:.1f} mm"
+        )
+
+    warns: list[str] = []
     rho = geom.density_kg_m3
-    if not (750.0 <= rho <= 1400.0):
+    lo, hi = PLASTIC_DENSITY_RANGE
+    if not (lo <= rho <= hi):
         warns.append(
-            f"implied plastic density {rho:.0f} kg/m^3 is outside the 750-1400 "
-            "range of real disc golf plastics; the parameter set may not "
-            "describe a manufacturable disc"
+            f"implied plastic density {rho:.0f} kg/m^3 is outside the "
+            f"{lo:.0f}-{hi:.0f} range of real disc golf plastics; the parameter "
+            "set may not describe a manufacturable disc"
         )
     if geom.I_zz <= 0 or geom.I_xy <= 0:
         raise GeometryError("non-positive moment of inertia")

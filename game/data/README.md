@@ -15,7 +15,7 @@ Regenerate and verify:
 ```bash
 python -m tools.aero.bake            # rewrite everything
 python -m tools.aero.bake --check    # assert the committed files are current
-python -m pytest tools/aero          # 112 tests
+python -m pytest tools/aero          # 121 tests
 ```
 
 ---
@@ -167,8 +167,26 @@ So the roster *infers* them: it inverts the geometry→`CM` model to find the pa
 that reproduces the disc's published turn and fade. They are model output
 wearing the shape of a measurement, marked `inferred_from_flight_numbers` in
 `geometry_provenance`. Every inferred value lands in a manufacturable range
-(parting lines 3.1–8.5 mm, noses 2.5–10.7 mm, parting ratios 0.26–0.71), which
-is a sanity check, not a validation.
+(parting lines 3.1–8.5 mm, noses 3.5–8.0 mm, parting ratios 0.26–0.71), which
+is a sanity check, not a validation. It is a check with teeth, though: it caught
+a real modelling error. An earlier version inferred nose thickness as a fraction
+of *rim width*, which made it grow with rim width and produced the 13-speed Boss
+with the bluntest nose in the roster (10.2 mm) and the putter with the thinnest
+(2.5 mm) — backwards, since nose thickness is a mould-design choice that does
+not track rim width. It also pushed three discs' implied plastic density below
+anything real (Boss 778, Undertaker 783, River 797 kg/m³). Inferring the nose as
+an absolute thickness fixed both symptoms; the roster now spans 826–1107 kg/m³,
+inside the documented 800–1200 band, and a test asserts it.
+
+The rim wing is **not** assumed to be centred on the parting line. Real moulds
+are asymmetric about it, and on a very understable disc such as the Roadrunner
+the parting line sits low on a flat-bottomed wing. An earlier validation rule
+rejected exactly that arrangement (`rim_thickness ≤ 2·parting_line`); the rule
+was wrong, not the disc, and it has been replaced by the constraints that
+actually matter — the wing must be thinner than the rim and must not poke above
+the flight plate. Every shipped geometry passes the same `make_geometry`
+validation a hand-written parameter set would, warning-free, and three tests
+assert that over the whole roster.
 
 A consequence worth being explicit about: the geometry→`CM` model is a
 **calibration, not a regression**. There is no dataset of parting-line heights
@@ -259,21 +277,21 @@ RK4 at 1/240 s, launch height 1.4 m). Full trajectories are dumped to
 
 | throw | dist | lateral | max right | peak | time | spin lost |
 |---|---|---|---|---|---|---|
-| Destroyer, 27 m/s, 25 rev/s, 13° up, 22° hyzer | **111.7 m** | +1.6 m | 9.7 m | 11.9 m | 8.29 s | 11.7% |
-| Wraith, 27 m/s, 25 rev/s, 12° up, 15° hyzer | 108.6 m | +2.7 m | 10.7 m | 11.2 m | 8.00 s | 11.4% |
-| Aviar drive, 18 m/s, 14 rev/s | **40.4 m** | -5.9 m | 0.0 m | 3.3 m | 3.28 s | 5.5% |
-| Aviar putt, 13 m/s | 19.1 m | -2.0 m | 0.0 m | 1.7 m | 1.76 s | 2.6% |
-| Roadrunner, 27 m/s flat | 60.1 m | +13.3 m | 13.3 m | 5.9 m | 2.98 s | 6.4% |
-| Firebird, 25 m/s, 5° hyzer | 77.8 m | -21.9 m | 0.0 m | 9.0 m | 5.32 s | 8.5% |
-| Teebird, 23 m/s, 3° hyzer | 75.3 m | -16.7 m | 0.0 m | 6.7 m | 5.39 s | 9.3% |
-| Buzzz, 20 m/s flat | 55.9 m | -3.7 m | 1.2 m | 4.0 m | 4.44 s | 7.9% |
-| Destroyer RHFH (mirror) | 111.7 m | -1.6 m | 1.6 m | 11.9 m | 8.29 s | 11.7% |
+| Destroyer, 27 m/s, 25 rev/s, 13° up, 22° hyzer | **113.5 m** | +6.0 m | 12.3 m | 11.7 m | 8.31 s | 12.2% |
+| Wraith, 27 m/s, 25 rev/s, 12° up, 15° hyzer | 109.6 m | +5.2 m | 12.2 m | 11.1 m | 8.00 s | 11.8% |
+| Aviar drive, 18 m/s, 14 rev/s | **40.5 m** | -6.0 m | 0.0 m | 3.3 m | 3.30 s | 5.5% |
+| Aviar putt, 13 m/s | 19.1 m | -2.0 m | 0.0 m | 1.7 m | 1.77 s | 2.6% |
+| Roadrunner, 27 m/s flat | 59.8 m | +13.2 m | 13.2 m | 5.8 m | 2.96 s | 6.4% |
+| Firebird, 25 m/s, 5° hyzer | 77.7 m | -21.8 m | 0.0 m | 9.0 m | 5.31 s | 8.7% |
+| Teebird, 23 m/s, 3° hyzer | 75.2 m | -16.6 m | 0.0 m | 6.7 m | 5.38 s | 9.5% |
+| Buzzz, 20 m/s flat | 55.9 m | -3.7 m | 1.2 m | 4.0 m | 4.45 s | 7.9% |
+| Destroyer RHFH (mirror) | 113.5 m | -6.0 m | 1.5 m | 11.7 m | 8.31 s | 12.2% |
 
 Against the CONTRACT §5 v2 sanity targets — **all four now met**:
 
 * **12/5/-1/3 at ~27 m/s, ~25 rev/s, small hyzer → 105–130 m with an early right
-  turn and a left fade finish.** Met: 111.7 m, turns out to +9.7 m then fades
-  back to +1.6 m. The sign flip lives in `CM(α)`, not in spin decay.
+  turn and a left fade finish.** Met: 113.5 m, turns out to +12.3 m then fades
+  back to +6.0 m. The sign flip lives in `CM(α)`, not in spin decay.
 
   With one caveat worth stating: it takes **22°** of hyzer, not the 8° that
   worked under the halved v1 precession. Two reasons, both real. The corrected
@@ -284,28 +302,28 @@ Against the CONTRACT §5 v2 sanity targets — **all four now met**:
   anchors sit exactly on its published 11/5/-1/3, meets the target at 15°.
 
   Because the target is release-sensitive, `tools/aero/validation/hyzer_sweep.json`
-  publishes the whole 24-release grid rather than one throw. Four releases
-  (hyzer 20–26°, launch 11–14°) meet §5; quoting only one would overstate how
-  well-determined it is.
+  publishes the whole 32-release grid rather than one throw. Five releases
+  (hyzer 20–24°, launch 12–14°) meet §5; quoting only one would overstate how
+  well-determined it is, and a test fails if that count ever drops below three.
 
 * **2/3/0/1 putter at ~18 m/s → 40–60 m, nearly straight with a gentle fade.**
-  Met: 40.4 m, 5.9 m of left fade. Honestly, it sits on the *bottom edge* of the
+  Met: 40.5 m, 6.0 m of left fade. Honestly, it sits on the *bottom edge* of the
   band. The model was not touched when this target was corrected from 13 m/s,
-  and the same throw at 13 m/s still returns 20.0 m — a test asserts that, so
+  and the same throw at 13 m/s still returns 20.1 m — a test asserts that, so
   nobody can quietly tune toward the old figure later.
 
 * **More spin → less turn and less fade.** Met on the attitude, which is what
-  `Ω = τ/(I_zz·ω)` says: disc tilt at t = 2 s falls 77.0° → 51.4° → 39.7° →
-  32.5° → 27.5° as spin goes 15 → 35 rev/s. Landing drift moves the *other* way
-  (11.3 → 16.2 → 20.5 → 24.7 → 29.6 m) because more spin also keeps the disc
-  flat, which keeps it airborne longer (2.75 s → 4.93 s), which gives the
+  `Ω = τ/(I_zz·ω)` says: disc tilt at t = 2 s falls 81.3° → 53.1° → 41.0° →
+  33.5° → 28.3° as spin goes 15 → 35 rev/s. Landing drift moves the *other* way
+  (10.9 → 15.7 → 20.0 → 24.0 → 28.6 m) because more spin also keeps the disc
+  flat, which keeps it airborne longer (2.71 s → 4.80 s), which gives the
   residual bank more time to work. Both are reported; quoting only the second
   would make the model look broken when it is not.
 
 * **Understable disc thrown flat and fast turns over and may roll.** Now met —
   this was the target that only reached 23° of tilt under v1. The Roadrunner at
-  27 m/s flat reaches **69.8°** of tilt and stays there: it turns over hard,
-  never stands back up, and dumps at 60.1 m. That is a roller in all but name.
+  27 m/s flat reaches **70.6°** of tilt and stays there: it turns over hard,
+  never stands back up, and dumps at 59.8 m. That is a roller in all but name.
 
 * **RHFH mirrors RHBH exactly.** Met, to 1e-6.
 
@@ -318,11 +336,17 @@ agreement is within 0.4%:
 
 | throw | shotshaper | ours (gain 2.0) | ours, kinematics only (gain 1.0) |
 |---|---|---|---|
-| their example (24.2 m/s, 15.5°, 14.7° roll) | 82.1 m, 6.87 s, 11.5 m peak, -4.2 lat | **81.7 m, 6.80 s, 11.6 m, -4.3** | 76.5 m, 6.88 s, 12.1 m, -26.3 |
-| flat, 27 m/s, 25 rev/s | 75.0 m, 4.13 s, 8.9 m, +24.9 | **72.9 m, 3.81 s, 8.2 m, +20.6** | 108.7 m, 7.28 s, 10.4 m, +46.4 |
+| their example (24.2 m/s, 15.5°, 14.7° roll) | 82.1 m, 6.87 s, 11.5 m peak, -4.2 lat | **82.6 m, 6.81 s, 11.4 m, -2.4** | 76.4 m, 6.87 s, 12.2 m, -25.6 |
+| flat, 27 m/s, 25 rev/s | 75.0 m, 4.13 s, 8.9 m, +24.9 | **71.9 m, 3.73 s, 8.1 m, +20.0** | 106.4 m, 7.01 s, 10.3 m, +44.8 |
 
-The residual on the flat throw is our damping and spin-down terms, which their
-model does not have at all.
+Distance, flight time and peak height agree to ~1% on their example throw. The
+lateral figure is looser and deliberately asserted loosely: on that throw it is
+a ~2 m residual left over from a ~25 m turn cancelling a ~25 m fade, so a couple
+of metres of disagreement is a few percent of the excursions producing it, not
+of the number itself. Asserting it tightly would be asserting noise. The
+remaining gap on the flat throw is our damping and spin-down terms, which their
+model does not have at all, and a 1.5% difference in `I_zz` (they take it from
+the scanned STL, we integrate it from the PDGA profile).
 
 The third column is *not* an alternative law. It is the pure kinematics, with
 the empirical gain removed — see the next section.
@@ -368,11 +392,11 @@ The evidence for the value, measured rather than asserted
 
 | | gain 1.0 (pure kinematics) | gain 2.0 (shipped) |
 |---|---|---|
-| canonical drive distance | 102.1 m | 111.4 m |
-| canonical drive flight time | 7.93 s | 8.29 s |
-| canonical drive fade-back | 40.7 m — turns out and never returns | 8.3 m |
-| flat drive distance / time | 108.7 m / 7.28 s | 72.9 m / 3.81 s |
-| understable disc peak tilt | 23.4° — never turns over | 69.3° |
+| canonical drive distance | 101.8 m | 113.5 m |
+| canonical drive flight time | 7.94 s | 8.31 s |
+| canonical drive fade-back | 39.7 m — turns out and never returns | 6.3 m |
+| flat drive distance / time | 106.4 m / 7.01 s | 71.9 m / 3.73 s |
+| understable disc peak tilt | 23.9° — never turns over | 70.6° |
 
 Gain 1.0 is not a near miss. A flat drive hangs nearly twice as long as it
 should, the fade all but disappears, and the CONTRACT §5 understable-disc target

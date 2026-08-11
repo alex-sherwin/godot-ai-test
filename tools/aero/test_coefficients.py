@@ -164,7 +164,8 @@ def test_higher_parting_line_makes_a_disc_more_overstable():
     """Monotone in the direction the literature reports: parting-line ratio
     drives both turn and fade, together."""
     prev_turn = prev_fade = None
-    for parting in np.linspace(0.0035, 0.0105, 12):
+    # Upper bound keeps the 7.6 mm wing under the flight plate.
+    for parting in np.linspace(0.0035, 0.0098, 12):
         g = _geom(parting_line_m=float(parting))
         turn, fade = C.flight_numbers_from_cm(*C.cm_anchors_from_geometry(g))
         if prev_turn is not None:
@@ -175,7 +176,7 @@ def test_higher_parting_line_makes_a_disc_more_overstable():
 
 def test_more_negative_cm_at_zero_is_more_understable():
     lo = _geom(parting_line_m=0.0035)
-    hi = _geom(parting_line_m=0.0100)
+    hi = _geom(parting_line_m=0.0098)
     cm0_lo, _ = C.cm_anchors_from_geometry(lo)
     cm0_hi, _ = C.cm_anchors_from_geometry(hi)
     assert cm0_lo < cm0_hi
@@ -183,8 +184,8 @@ def test_more_negative_cm_at_zero_is_more_understable():
 
 
 def test_blunter_nose_widens_the_turn_fade_split():
-    thin = _geom(rim_thickness_m=0.0045)
-    blunt = _geom(rim_thickness_m=0.0095)
+    thin = _geom(rim_thickness_m=0.0040)
+    blunt = _geom(rim_thickness_m=0.0090)
     t_thin, f_thin = C.flight_numbers_from_cm(*C.cm_anchors_from_geometry(thin))
     t_blunt, f_blunt = C.flight_numbers_from_cm(*C.cm_anchors_from_geometry(blunt))
     assert f_blunt > f_thin      # more fade
@@ -209,7 +210,7 @@ def test_inferred_profiles_are_manufacturable():
         depth, width = p["rim_depth_cm"] / 100.0, p["rim_thickness_cm"] / 100.0
         parting, nose = C.infer_shape_from_flight(fn["turn"], fn["fade"], depth, width)
         assert 0.0015 < parting < depth, f"{e['id']} parting {parting}"
-        assert 0.0015 < nose < 0.012, f"{e['id']} nose {nose}"
+        assert 0.003 < nose < 0.009, f"{e['id']} nose {nose}"
         assert 0.20 < parting / depth < 0.90, f"{e['id']} parting ratio"
 
 

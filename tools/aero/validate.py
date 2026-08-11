@@ -561,7 +561,7 @@ def hyzer_sweep(disc_id: str = "destroyer") -> list[dict]:
     disc = load_disc(disc_id)
     rows = []
     for launch_deg in (11.0, 12.0, 13.0, 14.0):
-        for hyzer_deg in (8.0, 12.0, 16.0, 20.0, 22.0, 26.0):
+        for hyzer_deg in (8.0, 12.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0):
             r = simulate(disc, ThrowParams(
                 speed_mps=27.0, spin_rps=25.0,
                 launch_angle_rad=math.radians(launch_deg),

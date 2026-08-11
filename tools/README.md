@@ -9,7 +9,7 @@ pip install -r tools/requirements.txt
 python -m tools.aero.fetch_reference_data     # refresh the cached reference data
 python -m tools.aero.bake                     # -> game/data/aero/*.json + discs.json
 python -m tools.aero.validate --dump          # -> tools/aero/validation/*.json
-python -m pytest tools/aero                   # 114 tests
+python -m pytest tools/aero                   # 121 tests
 ```
 
 Dependencies are numpy, scipy and pytest, pinned in `tools/requirements.txt`.
@@ -41,14 +41,19 @@ host. Re-running the fetch rewrites the cache; `--check` verifies it.
 validates them, builds the meridional cross-section, and integrates the solid of
 revolution for `I_zz` and `I_xy` — *not* hardcoded constants, because a
 thin-rimmed putter and a wide-rimmed driver genuinely differ (Aviar
-`I_zz = 1.07e-3 kg m^2`, Boss `1.31e-3`, an 18% spread). The integral is checked against the four
-scanned CFD discs, whose specific inertias trimesh computed from the real STL
-meshes: -0.1% (Destroyer/dd2), +0.6% (Firebird/cd1), -1.0% (Roadrunner/cd5),
--9.6% (Teebird/fd2, a mould that has been retooled repeatedly).
+`I_zz = 1.09e-3 kg m^2`, Boss `1.25e-3`, a 13% spread). The integral is checked
+against the four scanned CFD discs, whose specific inertias trimesh computed
+from the real STL meshes: +0.3% (Roadrunner/cd5), +1.5% (Destroyer/dd2), +2.7%
+(Firebird/cd1), -11.0% (Teebird/fd2, a mould that has been retooled repeatedly
+— the disc that was scanned need not be the one the PDGA measured).
 
 Assuming uniform density, the model also reports the *implied* plastic density.
-It lands at 779–1128 kg/m³ across the roster, which is real disc plastic. That
-makes the profile model falsifiable rather than merely plausible.
+It lands at 826–1107 kg/m³ across the roster, inside the documented 800–1200
+band, which is real disc plastic. That makes the profile model falsifiable
+rather than merely plausible — and it did falsify one: inferring nose thickness
+as a fraction of rim width pushed three discs under 800 kg/m³ and gave a
+13-speed the bluntest nose in the roster. Nose thickness is now inferred as an
+absolute length. See `game/data/README.md`.
 
 **3. Coefficients.** Shape-preserving affine mapping of a real measured CFD
 curve onto anchors predicted from geometry. Documented in full in
@@ -148,14 +153,29 @@ Two places where this pipeline had to pin down something the contract left
 ambiguous or self-contradictory. Neither changes a data format; both change how
 a number should be read.
 
+* **`DiscGeometry.cross_section` is the canonical profile.** It returns
+  `(r, z_lo, z_hi)` for the meridional section; lathing it is the definition of
+  the disc's shape, and the inertia integrals are taken over exactly that
+  profile. Track C should port or call it rather than reimplement the geometry,
+  so the rendered disc and the aerodynamic model cannot drift apart. Treated as
+  a stable interface: it will not change shape without a note here.
+
 * **`parting_line_m`** — CONTRACT §2 words it as "height of the parting line
   above the flight plate", which would put `parting_ratio` near zero and make it
   negative for low-parting-line moulds. We use the standard industry meaning:
   height above the *resting plane* (the plane the disc sits on). That puts
   `parting_ratio = parting_line_m / rim_depth_m` in (0, 1) — 0.26 to 0.71 across
   the roster — and makes it the stability driver the literature describes.
-  **Track C must lathe the cross-section with this convention**; see
-  `DiscGeometry.cross_section`, which returns the exact profile to sweep.
+  The wing is **not** centred on the parting line: real moulds are asymmetric
+  about it, and on the Roadrunner it sits low on a flat-bottomed wing.
+
+* **`rim_thickness_m` is the *axial* thickness of the rim wing** — how blunt the
+  nose is — not the total rim height. It runs 3.5–8.0 mm across the roster and
+  is always less than `rim_depth_m`. Total rim height is
+  `rim_depth_m + plate thickness`, exposed as `DiscGeometry.rim_height_m`, and
+  overall disc height as `DiscGeometry.height_m`. Track C read this field as
+  total rim height and clamped it, which made it inert on every shipped disc;
+  the coordinator has confirmed Track C adopts the definition above.
 
 * **`hyzer_angle_rad` sign** — positive banks the disc **left** for a RHBH throw,
   so a hyzer release finishes left. CONTRACT §4 v2 confirms this; v1's

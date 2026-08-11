@@ -48,7 +48,7 @@
     "mass_kg": 0.175,
     "rim_width_m": 0.009,
     "rim_depth_m": 0.015,
-    "rim_thickness_m": 0.002518,
+    "rim_thickness_m": 0.003509,
     "parting_line_m": 0.006915,
     "dome_height_m": 0.0032,
     "inner_rim_edge_m": 0.097
@@ -56,11 +56,11 @@
    "derived": {
     "area_m2": 0.0352989,
     "parting_ratio": 0.461,
-    "nose_ratio": 0.1679,
-    "I_zz": 0.00107218,
-    "I_xy": 0.00054021,
+    "nose_ratio": 0.2339,
+    "I_zz": 0.00108654,
+    "I_xy": 0.0005475,
     "height_m": 0.02,
-    "density_kg_m3": 1127.7
+    "density_kg_m3": 1107.1
    },
    "aero": "aviar",
    "aero_provenance": "derived",
@@ -104,7 +104,7 @@
     "mass_kg": 0.173,
     "rim_width_m": 0.012,
     "rim_depth_m": 0.013,
-    "rim_thickness_m": 0.005266,
+    "rim_thickness_m": 0.006475,
     "parting_line_m": 0.008129,
     "dome_height_m": 0.0052,
     "inner_rim_edge_m": 0.0935
@@ -112,11 +112,11 @@
    "derived": {
     "area_m2": 0.0349667,
     "parting_ratio": 0.6253,
-    "nose_ratio": 0.4051,
-    "I_zz": 0.00101884,
-    "I_xy": 0.00051282,
+    "nose_ratio": 0.4981,
+    "I_zz": 0.00103658,
+    "I_xy": 0.00052178,
     "height_m": 0.02,
-    "density_kg_m3": 885.4
+    "density_kg_m3": 864.9
    },
    "aero": "zone",
    "aero_provenance": "derived",
@@ -160,7 +160,7 @@
     "mass_kg": 0.18,
     "rim_width_m": 0.012,
     "rim_depth_m": 0.013,
-    "rim_thickness_m": 0.005266,
+    "rim_thickness_m": 0.006475,
     "parting_line_m": 0.008129,
     "dome_height_m": 0.0052,
     "inner_rim_edge_m": 0.0965
@@ -168,11 +168,11 @@
    "derived": {
     "area_m2": 0.0369836,
     "parting_ratio": 0.6253,
-    "nose_ratio": 0.4051,
-    "I_zz": 0.00111783,
-    "I_xy": 0.00056243,
+    "nose_ratio": 0.4981,
+    "I_zz": 0.00113711,
+    "I_xy": 0.00057216,
     "height_m": 0.02,
-    "density_kg_m3": 875.2
+    "density_kg_m3": 855.4
    },
    "aero": "roc",
    "aero_provenance": "derived",
@@ -216,7 +216,7 @@
     "mass_kg": 0.177,
     "rim_width_m": 0.012,
     "rim_depth_m": 0.013,
-    "rim_thickness_m": 0.003945,
+    "rim_thickness_m": 0.004422,
     "parting_line_m": 0.005336,
     "dome_height_m": 0.0042,
     "inner_rim_edge_m": 0.0965
@@ -224,11 +224,11 @@
    "derived": {
     "area_m2": 0.0369836,
     "parting_ratio": 0.4104,
-    "nose_ratio": 0.3035,
-    "I_zz": 0.00111901,
-    "I_xy": 0.00056349,
+    "nose_ratio": 0.3401,
+    "I_zz": 0.00112719,
+    "I_xy": 0.00056763,
     "height_m": 0.019,
-    "density_kg_m3": 952.4
+    "density_kg_m3": 942.9
    },
    "aero": "buzzz",
    "aero_provenance": "derived",
@@ -272,7 +272,7 @@
     "mass_kg": 0.175,
     "rim_width_m": 0.016,
     "rim_depth_m": 0.011,
-    "rim_thickness_m": 0.006044,
+    "rim_thickness_m": 0.005335,
     "parting_line_m": 0.003959,
     "dome_height_m": 0.0032,
     "inner_rim_edge_m": 0.09
@@ -280,11 +280,11 @@
    "derived": {
     "area_m2": 0.0352989,
     "parting_ratio": 0.3599,
-    "nose_ratio": 0.5494,
-    "I_zz": 0.00114406,
-    "I_xy": 0.00057541,
+    "nose_ratio": 0.485,
+    "I_zz": 0.00113099,
+    "I_xy": 0.00056882,
     "height_m": 0.016,
-    "density_kg_m3": 981.4
+    "density_kg_m3": 1001.6
    },
    "aero": "leopard",
    "aero_provenance": "derived",
@@ -328,7 +328,7 @@
     "mass_kg": 0.175,
     "rim_width_m": 0.017,
     "rim_depth_m": 0.011,
-    "rim_thickness_m": 0.006109,
+    "rim_thickness_m": 0.004992,
     "parting_line_m": 0.005975,
     "dome_height_m": 0.0022,
     "inner_rim_edge_m": 0.089
@@ -336,11 +336,11 @@
    "derived": {
     "area_m2": 0.0352989,
     "parting_ratio": 0.5432,
-    "nose_ratio": 0.5553,
-    "I_zz": 0.00120073,
-    "I_xy": 0.00060297,
+    "nose_ratio": 0.4538,
+    "I_zz": 0.0011799,
+    "I_xy": 0.00059249,
     "height_m": 0.015,
-    "density_kg_m3": 1032.3
+    "density_kg_m3": 1070.0
    },
    "aero": "teebird",
    "aero_provenance": "measured",
@@ -389,7 +389,7 @@
     "mass_kg": 0.175,
     "rim_width_m": 0.018,
     "rim_depth_m": 0.011,
-    "rim_thickness_m": 0.005918,
+    "rim_thickness_m": 0.004422,
     "parting_line_m": 0.004515,
     "dome_height_m": 0.0052,
     "inner_rim_edge_m": 0.088
@@ -397,11 +397,11 @@
    "derived": {
     "area_m2": 0.0352989,
     "parting_ratio": 0.4104,
-    "nose_ratio": 0.538,
-    "I_zz": 0.00106915,
-    "I_xy": 0.00053827,
+    "nose_ratio": 0.402,
+    "I_zz": 0.00103996,
+    "I_xy": 0.00052356,
     "height_m": 0.018,
-    "density_kg_m3": 839.3
+    "density_kg_m3": 874.8
    },
    "aero": "fd",
    "aero_provenance": "derived",
@@ -445,7 +445,7 @@
     "mass_kg": 0.174,
     "rim_width_m": 0.018,
     "rim_depth_m": 0.012,
-    "rim_thickness_m": 0.005918,
+    "rim_thickness_m": 0.004422,
     "parting_line_m": 0.004925,
     "dome_height_m": 0.0052,
     "inner_rim_edge_m": 0.0895
@@ -453,11 +453,11 @@
    "derived": {
     "area_m2": 0.036305,
     "parting_ratio": 0.4104,
-    "nose_ratio": 0.4931,
-    "I_zz": 0.00110439,
-    "I_xy": 0.00055635,
+    "nose_ratio": 0.3685,
+    "I_zz": 0.00107594,
+    "I_xy": 0.000542,
     "height_m": 0.019,
-    "density_kg_m3": 794.2
+    "density_kg_m3": 826.6
    },
    "aero": "river",
    "aero_provenance": "derived",
@@ -501,7 +501,7 @@
     "mass_kg": 0.173,
     "rim_width_m": 0.019,
     "rim_depth_m": 0.011,
-    "rim_thickness_m": 0.007758,
+    "rim_thickness_m": 0.005905,
     "parting_line_m": 0.005419,
     "dome_height_m": 0.0052,
     "inner_rim_edge_m": 0.0865
@@ -509,11 +509,11 @@
    "derived": {
     "area_m2": 0.0349667,
     "parting_ratio": 0.4926,
-    "nose_ratio": 0.7052,
-    "I_zz": 0.00108439,
-    "I_xy": 0.0005457,
+    "nose_ratio": 0.5368,
+    "I_zz": 0.00105154,
+    "I_xy": 0.00052915,
     "height_m": 0.018,
-    "density_kg_m3": 785.0
+    "density_kg_m3": 826.2
    },
    "aero": "undertaker",
    "aero_provenance": "derived",
@@ -557,7 +557,7 @@
     "mass_kg": 0.175,
     "rim_width_m": 0.019,
     "rim_depth_m": 0.012,
-    "rim_thickness_m": 0.00985,
+    "rim_thickness_m": 0.007957,
     "parting_line_m": 0.00849,
     "dome_height_m": 0.0002,
     "inner_rim_edge_m": 0.0865
@@ -565,11 +565,11 @@
    "derived": {
     "area_m2": 0.0349667,
     "parting_ratio": 0.7075,
-    "nose_ratio": 0.8208,
-    "I_zz": 0.00136989,
-    "I_xy": 0.00068746,
+    "nose_ratio": 0.6631,
+    "I_zz": 0.00134584,
+    "I_xy": 0.00067526,
     "height_m": 0.014,
-    "density_kg_m3": 974.7
+    "density_kg_m3": 1039.6
    },
    "aero": "firebird",
    "aero_provenance": "measured",
@@ -618,7 +618,7 @@
     "mass_kg": 0.175,
     "rim_width_m": 0.018,
     "rim_depth_m": 0.012,
-    "rim_thickness_m": 0.008562,
+    "rim_thickness_m": 0.00716,
     "parting_line_m": 0.003105,
     "dome_height_m": 0.0002,
     "inner_rim_edge_m": 0.0875
@@ -626,11 +626,11 @@
    "derived": {
     "area_m2": 0.0349667,
     "parting_ratio": 0.2587,
-    "nose_ratio": 0.7135,
-    "I_zz": 0.00135649,
-    "I_xy": 0.00068156,
+    "nose_ratio": 0.5967,
+    "I_zz": 0.00133738,
+    "I_xy": 0.00067211,
     "height_m": 0.014,
-    "density_kg_m3": 1048.3
+    "density_kg_m3": 1100.3
    },
    "aero": "roadrunner",
    "aero_provenance": "measured",
@@ -661,10 +661,7 @@
     "case": "cd5",
     "confidence": "exact",
     "note": "cd5.yaml header: 'Understable control driver, modelled after an Innova Roadrunner'"
-   },
-   "geometry_warnings": [
-    "parting_line_m < half the rim wing thickness: the wing rests on the ground plane and the parting line sits low on a flat-bottomed wing (typical of very understable moulds)"
-   ]
+   }
   },
   {
    "id": "wraith",
@@ -682,7 +679,7 @@
     "mass_kg": 0.175,
     "rim_width_m": 0.021,
     "rim_depth_m": 0.012,
-    "rim_thickness_m": 0.010244,
+    "rim_thickness_m": 0.007388,
     "parting_line_m": 0.006897,
     "dome_height_m": 0.0002,
     "inner_rim_edge_m": 0.0845
@@ -690,11 +687,11 @@
    "derived": {
     "area_m2": 0.0349667,
     "parting_ratio": 0.5748,
-    "nose_ratio": 0.8537,
-    "I_zz": 0.00136709,
-    "I_xy": 0.00068632,
+    "nose_ratio": 0.6156,
+    "I_zz": 0.00133045,
+    "I_xy": 0.00066775,
     "height_m": 0.014,
-    "density_kg_m3": 908.5
+    "density_kg_m3": 1005.4
    },
    "aero": "wraith",
    "aero_provenance": "derived",
@@ -738,7 +735,7 @@
     "mass_kg": 0.175,
     "rim_width_m": 0.022,
     "rim_depth_m": 0.012,
-    "rim_thickness_m": 0.010732,
+    "rim_thickness_m": 0.007388,
     "parting_line_m": 0.006897,
     "dome_height_m": 0.0002,
     "inner_rim_edge_m": 0.0835
@@ -746,11 +743,11 @@
    "derived": {
     "area_m2": 0.0349667,
     "parting_ratio": 0.5748,
-    "nose_ratio": 0.8943,
-    "I_zz": 0.00136802,
-    "I_xy": 0.00068682,
+    "nose_ratio": 0.6156,
+    "I_zz": 0.00132576,
+    "I_xy": 0.00066538,
     "height_m": 0.014,
-    "density_kg_m3": 869.7
+    "density_kg_m3": 980.3
    },
    "aero": "destroyer",
    "aero_provenance": "measured",
@@ -799,7 +796,7 @@
     "mass_kg": 0.175,
     "rim_width_m": 0.025,
     "rim_depth_m": 0.012,
-    "rim_thickness_m": 0.010207,
+    "rim_thickness_m": 0.005905,
     "parting_line_m": 0.005911,
     "dome_height_m": 0.0012,
     "inner_rim_edge_m": 0.081
@@ -807,11 +804,11 @@
    "derived": {
     "area_m2": 0.0352989,
     "parting_ratio": 0.4926,
-    "nose_ratio": 0.8506,
-    "I_zz": 0.00131424,
-    "I_xy": 0.0006602,
+    "nose_ratio": 0.4921,
+    "I_zz": 0.00124995,
+    "I_xy": 0.00062773,
     "height_m": 0.015,
-    "density_kg_m3": 779.4
+    "density_kg_m3": 913.7
    },
    "aero": "boss",
    "aero_provenance": "derived",

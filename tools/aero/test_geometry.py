@@ -12,6 +12,7 @@ import pytest
 from tools.aero import coefficients as C
 from tools.aero.geometry import (
     DEFAULT_PLATE_THICKNESS_M,
+    PLASTIC_DENSITY_RANGE,
     GeometryError,
     geometry_from_pdga,
     make_geometry,
@@ -74,6 +75,9 @@ def test_inertia_matches_scanned_discs(disc_id):
     g = _geom_for(disc_id)
     assert g.I_zz / g.mass_kg == pytest.approx(j_z, rel=0.12)
     assert g.I_xy / g.mass_kg == pytest.approx(j_xy, rel=0.12)
+    if disc_id != "teebird":
+        # Everything but the Teebird lands inside 3%.
+        assert g.I_zz / g.mass_kg == pytest.approx(j_z, rel=0.03)
 
     ref = C.measured_case(case)
     assert g.I_zz / g.mass_kg == pytest.approx(ref["J_z_m2"], rel=0.12)
@@ -121,10 +125,24 @@ def test_inertia_quadrature_has_converged():
 # physical plausibility
 # ---------------------------------------------------------------------------
 def test_every_roster_disc_implies_real_plastic_density():
-    """If the profile model were wrong the implied density would drift off."""
+    """If the profile model were wrong the implied density would drift off.
+
+    This caught a real modelling error: inferring nose thickness as a fraction
+    of *rim width* gave wide-rim drivers absurdly blunt noses and pushed three
+    discs (Boss 778, Undertaker 783, River 797 kg/m^3) below anything a real
+    plastic can be. Inferring it as an absolute thickness fixed all three.
+    """
+    lo, hi = PLASTIC_DENSITY_RANGE
     for e in ROSTER:
         g = _geom_for(e["id"])
-        assert 750.0 <= g.density_kg_m3 <= 1400.0, f"{e['id']}: {g.density_kg_m3}"
+        assert lo <= g.density_kg_m3 <= hi, f"{e['id']}: {g.density_kg_m3:.0f}"
+
+
+def test_shipped_densities_match_the_documented_range():
+    doc = json.loads(DISCS_JSON.read_text())
+    rho = [d["derived"]["density_kg_m3"] for d in doc["discs"]]
+    assert min(rho) >= PLASTIC_DENSITY_RANGE[0]
+    assert max(rho) <= PLASTIC_DENSITY_RANGE[1]
 
 
 def test_cross_section_is_non_negative_and_closes():
@@ -193,17 +211,89 @@ def test_missing_parameter_raises():
         make_geometry(**kw)
 
 
-def test_low_parting_line_warns_rather_than_raises():
-    kw = _valid_kwargs()
-    kw["parting_line_m"] = 0.0015
-    kw["rim_thickness_m"] = 0.008
-    g = make_geometry(**kw)
-    assert any("ground plane" in w for w in g.warnings)
-
-
 # ---------------------------------------------------------------------------
 # what actually shipped
 # ---------------------------------------------------------------------------
+def test_shipped_geometry_passes_the_same_validation_as_a_hand_built_one():
+    """No bypass: every geometry in `discs.json` must survive `make_geometry`.
+
+    The inference path (`coefficients.infer_shape_from_flight` ->
+    `geometry_from_pdga`) routes through the same constructor as any
+    hand-written parameter set, so a value the constructor would reject cannot
+    reach the shipped data. This asserts that end to end rather than trusting
+    the call graph.
+    """
+    doc = json.loads(DISCS_JSON.read_text())
+    assert len(doc["discs"]) >= 14
+    for entry in doc["discs"]:
+        make_geometry(**entry["geometry"])          # raises if invalid
+
+
+def test_shipped_geometry_is_warning_free():
+    """And no shipped disc may merely *warn*, either.
+
+    A warning that every release quietly carries is a warning nobody reads.
+    """
+    doc = json.loads(DISCS_JSON.read_text())
+    for entry in doc["discs"]:
+        g = make_geometry(**entry["geometry"])
+        assert not g.warnings, f"{entry['id']}: {g.warnings}"
+        assert "geometry_warnings" not in entry, f"{entry['id']} ships a warning"
+
+
+def test_shipped_geometry_matches_a_fresh_inference():
+    """The shipped numbers are exactly what the inference produces today —
+    nothing was hand-patched into `discs.json` afterwards."""
+    doc = json.loads(DISCS_JSON.read_text())
+    for entry in doc["discs"]:
+        fresh = _geom_for(entry["id"])
+        for field, value in fresh.params().items():
+            assert entry["geometry"][field] == pytest.approx(value, abs=1e-6), \
+                f"{entry['id']}.{field}"
+
+
+def test_every_roster_profile_is_geometrically_closed():
+    """The rim wing must fit inside the rim envelope on every disc.
+
+    It is *not* required to be centred on the parting line — real moulds are
+    asymmetric about it, and on a very understable disc (the Roadrunner) the
+    parting line sits low on a flat-bottomed wing. The rule that once rejected
+    that arrangement assumed symmetry and was wrong.
+    """
+    for e in ROSTER:
+        g = _geom_for(e["id"])
+        wing_bottom = max(g.parting_line_m - 0.5 * g.rim_thickness_m, 0.0)
+        assert wing_bottom + g.rim_thickness_m <= g.rim_height_m + 1e-9, e["id"]
+        assert g.rim_thickness_m < g.rim_height_m, e["id"]
+        _, z_lo, z_hi = g.cross_section(401)
+        assert (z_hi - z_lo >= -1e-12).all(), e["id"]
+
+
+def test_asymmetric_parting_line_is_accepted_not_warned():
+    """Regression guard for the rule that was removed."""
+    kw = _valid_kwargs()
+    kw["parting_line_m"] = 0.0031
+    kw["rim_thickness_m"] = 0.0072
+    g = make_geometry(**kw)
+    assert not g.warnings
+    assert g.I_zz > 0
+
+
+def test_wing_thicker_than_the_rim_still_raises():
+    kw = _valid_kwargs()
+    kw["rim_thickness_m"] = kw["rim_depth_m"] + 0.002
+    with pytest.raises(GeometryError):
+        make_geometry(**kw)
+
+
+def test_wing_poking_above_the_flight_plate_raises():
+    kw = _valid_kwargs()
+    kw["parting_line_m"] = 0.0115
+    kw["rim_thickness_m"] = 0.008
+    with pytest.raises(GeometryError):
+        make_geometry(**kw)
+
+
 def test_shipped_discs_json_geometry_round_trips():
     doc = json.loads(DISCS_JSON.read_text())
     for entry in doc["discs"]:

@@ -111,9 +111,17 @@ PARTING_RATIO_REF = 0.50
 CM_BAR_REF = 0.0100
 CM_BAR_PER_PARTING = 0.0333          # d(cm_bar)/d(parting_ratio)
 
-BLUNTNESS_REF = 0.40                 # rim_thickness_m / rim_width_m
+# The second handle is the *absolute* axial thickness of the rim wing, not a
+# ratio. An earlier version scaled it by rim width, which made nose thickness
+# grow with rim width and produced absurdities at both ends: a 13-speed Boss
+# came out with the bluntest nose in the roster (10.2 mm) and a putter with the
+# thinnest (2.5 mm), which is backwards. Nose thickness is a mould-design choice
+# that does not track rim width; real moulds run roughly 3.5-8 mm regardless of
+# class. Using it directly also fixed three discs whose implied plastic density
+# had fallen below anything real (Boss 778 kg/m^3 -> 909).
+NOSE_REF_M = 0.00575                 # rim_thickness_m
 CM_SLOPE_REF = 0.0480
-CM_SLOPE_PER_BLUNTNESS = 0.0688      # d(cm_slope)/d(bluntness)
+CM_SLOPE_PER_NOSE_M = 3.69           # d(cm_slope)/d(rim_thickness_m), per metre
 
 # ---------------------------------------------------------------------------
 # CD0 = f(rim width), OLS over the four CFD discs:
@@ -245,19 +253,20 @@ def cm_anchors_from_geometry(geom: DiscGeometry) -> tuple[float, float]:
     This is the forward direction the simulator uses: drag the parting line in
     the UI and the flight changes.
     """
-    bluntness = geom.rim_thickness_m / geom.rim_width_m
     cm_bar = CM_BAR_REF + CM_BAR_PER_PARTING * (geom.parting_ratio - PARTING_RATIO_REF)
-    cm_slope = CM_SLOPE_REF + CM_SLOPE_PER_BLUNTNESS * (bluntness - BLUNTNESS_REF)
+    cm_slope = CM_SLOPE_REF + CM_SLOPE_PER_NOSE_M * (geom.rim_thickness_m - NOSE_REF_M)
     return cm_bar - 0.5 * cm_slope, cm_bar + 0.5 * cm_slope
 
 
 def infer_shape_from_flight(
-    turn: float, fade: float, rim_depth_m: float, rim_width_m: float
+    turn: float, fade: float, rim_depth_m: float, rim_width_m: float | None = None
 ) -> tuple[float, float]:
     """Invert :func:`cm_anchors_from_geometry`: published ratings -> the two
     profile parameters nobody publishes.
 
-    Returns ``(parting_line_m, rim_thickness_m)``.
+    Returns ``(parting_line_m, rim_thickness_m)``.  ``rim_width_m`` is accepted
+    and ignored; it is kept in the signature because callers pass it and because
+    an earlier version of the model did use it.
 
     This is how the roster's ``parting_line_m`` and ``rim_thickness_m`` are
     obtained. They are **model output**, not measurements, and the emitted
@@ -267,10 +276,8 @@ def infer_shape_from_flight(
     cm_bar, cm_slope = 0.5 * (cm0 + cm10), cm10 - cm0
 
     parting_ratio = PARTING_RATIO_REF + (cm_bar - CM_BAR_REF) / CM_BAR_PER_PARTING
-    bluntness = BLUNTNESS_REF + (cm_slope - CM_SLOPE_REF) / CM_SLOPE_PER_BLUNTNESS
-
     parting_line_m = parting_ratio * rim_depth_m
-    rim_thickness_m = bluntness * rim_width_m
+    rim_thickness_m = NOSE_REF_M + (cm_slope - CM_SLOPE_REF) / CM_SLOPE_PER_NOSE_M
     return parting_line_m, rim_thickness_m
 
 
