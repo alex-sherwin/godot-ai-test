@@ -42,6 +42,21 @@ Sign conventions (CONTRACT §1) — get these wrong and turn/fade invert
   for a drive that should fly ~6 s.  ``shotshaper``'s
   ``-M/(omega*(I_xy - I_z))`` is the same expression and is correct.
   The axial equation is unaffected: spin-down still divides by ``I_zz``.
+
+  One caveat, recorded so it is not lost.  The empirical case for this form is
+  very strong: it reproduces the field-validated reference implementation to
+  0.4% on their own example throw, where the naive form misses by 26 m of
+  lateral.  The *kinematic* case is less settled.  Redone in the non-spinning
+  (Resal) frame, where the transverse rate components really are constant during
+  steady precession, the ``I_xy`` terms cancel and the naive form comes back;
+  the same result follows from the spinning-frame equations once you use
+  ``omega_2_dot = -n * omega_1`` rather than zero, which is what steady
+  precession actually implies in that frame.  So the factor of two may be doing
+  *calibration* work — standing in for the missing spin-induced roll moment, or
+  for a CFD pitching moment that is systematically high — rather than fixing a
+  kinematic error.  Practically this changes nothing today.  It matters if
+  someone later measures ``CRr`` for a real golf disc: this factor should be
+  re-examined at the same time, not assumed independent of it.
 * Spin-down carries the full ``0.5*rho*V^2*A*d`` scaling, which Hummel's
   published MATLAB omits.  See ``coefficients.DAMPING_PROVENANCE``.
 * ``hyzer_angle_rad``: positive banks the disc **left** for a RHBH throw, so a

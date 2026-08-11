@@ -325,6 +325,18 @@ model does not have at all. The third column is kept, and asserted by a test, so
 the size of the v1 error stays visible: it nearly doubles the flight time of a
 flat drive and lands it 26 m further right.
 
+One caveat on *why* the v2 form is right, recorded so it is not lost. The
+empirical case is overwhelming — 0.4% agreement against a field-validated
+implementation, versus 26 m of lateral error for the naive form. The kinematic
+case is less settled: redone in the non-spinning (Resal) frame, where the
+transverse rate components genuinely are constant during steady precession, the
+`I_xy` terms cancel and the naive form returns. So the factor of two may be
+doing *calibration* work — standing in for the missing `CRr` below, or for a CFD
+pitching moment that is systematically high — rather than correcting a kinematic
+error. Nothing changes today. It matters if anyone measures `CRr` for a real
+golf disc: this factor should be re-examined at the same time rather than
+assumed independent of it.
+
 ### The one coefficient the source data cannot contain
 
 There is no spin-induced roll moment (`CRr`) anywhere in this model. The
