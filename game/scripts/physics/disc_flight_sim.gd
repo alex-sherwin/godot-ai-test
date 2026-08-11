@@ -4,6 +4,7 @@ extends RefCounted
 # See the note in aero_table.gd for why these are preloads, not class_name refs.
 const AeroTable := preload("res://scripts/physics/aero_table.gd")
 const DiscDef := preload("res://scripts/physics/disc_definition.gd")
+const PortalLinkT := preload("res://scripts/physics/portal_link.gd")
 
 ## Six-degree-of-freedom disc golf flight integrator (CONTRACT §4).
 ##
@@ -95,6 +96,35 @@ const DiscDef := preload("res://scripts/physics/disc_definition.gd")
 ## The handover weight is EXACTLY zero above 5 rad/s (0.8 rev/s), so no realistic
 ## throw is perturbed by it. That path is a graceful degradation, not a fidelity
 ## claim — tumbling discs are outside the model's validity.
+##
+## ---------------------------------------------------------------------------
+## Rooms, portals and events (PORTAL_CONTRACT §4, §5)
+## ---------------------------------------------------------------------------
+## INVARIANT: every RK4 step sees exactly ONE constant environment, by
+## construction. When a substep contains a portal crossing it is SPLIT at the
+## crossing and the second half runs with the destination room's density, wind
+## and gravity. The obvious alternative — looking the room up inside `_derivs`
+## so each RK4 stage gets its own — is not merely less accurate, it does not
+## CONVERGE: measured error at dt = 1/240, 1/480, 1/960 is 0.00131, 0.00328,
+## 0.000328 m. The error goes UP when dt is halved. That is order reduction
+## across a discontinuity: RK4's error analysis assumes Lipschitz continuity and
+## stages landing on either side of an interface violate it. Splitting is
+## ~17,000x more accurate at our shipped dt (1.1e-6 m), costs nothing extra
+## because the crossing time is needed for the transform anyway, and preserves
+## the clean convergence order `test_integrator.gd` asserts.
+##
+## Sandbox mode is LITERALLY the one-room case: `configure()` calls
+## `configure_rooms(disc, [env], [], 0)`. There is no `if portal_mode` branch
+## anywhere in the stepping loop — the portal array is simply empty — so the two
+## modes cannot drift apart, and `simulate_full()` got portal support for free.
+##
+## `_derivs` is not touched by any of this. It reads the same three hoisted
+## scalars (`_rho`, `_gravity`, `_wind`) it always did; only `_apply_room_env()`
+## writes them. The hot loop costs exactly what it cost before.
+##
+## Ground, portals and walls are all located by the SAME secant solve on the
+## real integrator (`_locate_event`), so there is one mechanism, not three, and
+## the landing path is bit-for-bit what it was before portals existed.
 
 # ---------------------------------------------------------------------------
 # Contract types (CONTRACT §4)
@@ -162,6 +192,17 @@ class FlightResult:
 	var max_right_m: float = 0.0   ## most-right lateral excursion (>= 0 unless never right)
 	var max_left_m: float = 0.0    ## most-left lateral excursion (<= 0 unless never left)
 	var failed: bool = false       ## true if the integrator hit a non-finite state
+	# --- portal mode (PORTAL_CONTRACT). Zero / empty in sandbox mode.
+	var crossings: int = 0         ## portal crossings during the flight
+	var end_room: int = 0          ## room the disc landed in
+	## Wall hit that ended the flight, else {}. NOTE `landed` is true for a wall
+	## impact too — it means "the flight ended cleanly"; this field is what
+	## distinguishes hitting a wall from reaching the ground.
+	var impact: Dictionary = {}
+	## One entry per crossing: {t, link, enter, exit, to_room}. `trajectory` is a
+	## plain polyline with no break markers, so this is where the discontinuity
+	## is recorded.
+	var crossing_points: Array = []
 
 
 # ---------------------------------------------------------------------------
@@ -191,8 +232,44 @@ const TUMBLE_HI := 5.0
 ## Floor on the tumble-rate relaxation so it cannot linger when q_dyn -> 0.
 const TUMBLE_DAMP_FLOOR := 1.0
 const MAX_FLIGHT_TIME := 30.0
-## Secant refinements used to place the ground crossing inside the final substep.
+## Secant refinements used to place an event inside a substep. Fixed count, so
+## the result is deterministic (`test_determinism.gd` depends on it).
 const LANDING_REFINEMENTS := 4
+
+# --- events (PORTAL_CONTRACT §5) -------------------------------------------
+
+const _EVT_NONE := 0
+const _EVT_GROUND := 1
+const _EVT_PORTAL := 2
+const _EVT_WALL := 3
+
+## At 27 m/s and dt = 1/240 the disc moves 0.1125 m per substep, so tunnelling
+## through a portal is impossible; the cap is against a pathological arrangement
+## producing an unbounded event chain, not against missed crossings.
+const MAX_EVENTS_PER_SUBSTEP := 4
+
+## Skip a crossing whose normal speed is below this, m/s. The root is
+## ill-conditioned when the disc is sliding along the plane rather than through
+## it (PORTAL_CONTRACT §5).
+const MIN_CROSSING_SPEED := 0.05
+
+## Re-arm the return portal once the disc is this many disc RADII clear of it.
+## Re-arming on distance rather than on a timer means a disc that genuinely
+## curves back through the portal it came out of still works.
+const REARM_RADII := 2.0
+
+## Nudge along the exit normal after a crossing, m. 0.1 mm is far above the
+## float32 ulp at 100 m (~8e-6 m), so the disc is unambiguously on the front
+## side of the exit plane even after the transform rounds through a float32
+## `Transform3D`.
+const EXIT_NUDGE_M := 1.0e-4
+
+## A portal is set INTO a wall, so the two surfaces are coplanar to within about
+## this distance. Inside the window the portal wins, or a disc aimed at the
+## portal centre is stopped by the wall around it (PORTAL_CONTRACT §7). Cutting
+## a hole in the wall collider at the aperture is the better fix; this is the
+## backstop for when the level does not.
+const PORTAL_WALL_TIE_M := 0.02
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -244,8 +321,53 @@ var trajectory_sample_dt: float = 1.0 / 60.0
 ## How often `simulate_full()` records a detailed sample, seconds.
 var sample_dt: float = 1.0 / 60.0
 
+## Segment hit test for wall collision, injected so the sim stays node-free
+## (PORTAL_CONTRACT §7). `DiscFlightSim` having no scene-tree dependency is
+## load-bearing for the headless suite and for `preload()`-based compilation
+## without the script-class cache, so we do not reach for a `World3D` here.
+##
+##     func(from: Vector3, to: Vector3) -> Dictionary
+##     {}  = no hit
+##     else {fraction: float, position: Vector3, normal: Vector3, collider: Variant}
+##
+## Tests inject an analytic oracle (boxes and planes) and run headless; the game
+## injects a `PhysicsDirectSpaceState3D.intersect_ray` from `_physics_process`.
+## Same code path. `normal` points back toward `from`, as Godot's raycast
+## reports it; we flip it if it does not, rather than trusting the caller.
+var hit_oracle: Callable = Callable():
+	set(value):
+		hit_oracle = value
+		_has_oracle = value.is_valid()
+
+var _has_oracle: bool = false
+
 var _disc: DiscDef = null
 var _env: FlightEnvironment = null
+
+# --- rooms and portals (PORTAL_CONTRACT §4) --------------------------------
+# `_rooms[i]` is a FlightEnvironment; `_portals` is a STABLE ORDERED array of
+# PortalLink (never a dictionary — iteration order is part of determinism).
+var _rooms: Array = []
+var _portals: Array = []
+var _start_room: int = 0
+var _room: int = 0
+## 1 = the link can fire this substep. Cleared for a link the disc has just come
+## out of, re-set on distance (see REARM_RADII).
+var _armed := PackedInt32Array()
+## `_return_link[i]` is the index of the link that would send the disc straight
+## back, i.e. the one whose entrance is link `i`'s exit; -1 if there is none.
+var _return_link := PackedInt32Array()
+var _disc_radius: float = 0.105
+var _portal_count: int = 0
+var _crossings: int = 0
+var _event_overflows: int = 0
+var _last_impact: Dictionary = {}
+var _crossing_log: Array = []
+
+## Distance stepped off the exit plane after a crossing. Exposed ONLY so the
+## suite can show that this nudge, and nothing else, is the floor on portal
+## round-trip agreement; production code must leave it alone.
+var exit_nudge_m: float = EXIT_NUDGE_M
 
 # Cached scalars, hoisted out of the hot loop.
 var _mass: float = 0.175
@@ -271,7 +393,30 @@ var _k3 := PackedFloat64Array()
 var _k4 := PackedFloat64Array()
 var _tmp := PackedFloat64Array()
 var _trial := PackedFloat64Array()
+var _evt := PackedFloat64Array()
 var _aero := PackedFloat64Array()
+
+# Event-search scratch. Members rather than a returned Dictionary so the search
+# allocates nothing; only one event is ever being located at a time.
+var _evt_kind: int = _EVT_NONE
+var _evt_index: int = -1
+## Length of the sub-step `_locate_event` actually integrated. Carried as an
+## absolute dt rather than recomputed from the fraction so the landing path is
+## bit-identical to what it was before the refactor.
+var _located_dt: float = 0.0
+# Event plane, in DOUBLE precision. Vector3 is single precision, and
+# `(p - plane_origin)` at 100 m in float32 has an ~8e-6 m noise floor — enough
+# to stop the secant solve from ever reaching its 1e-7 m tolerance.
+var _plane_ox: float = 0.0
+var _plane_oy: float = 0.0
+var _plane_oz: float = 0.0
+var _plane_nx: float = 0.0
+var _plane_ny: float = 1.0
+var _plane_nz: float = 0.0
+# Cached once: constructing a Callable per event would allocate. Callable holds
+# an ObjectID, not a strong reference, so this is not a self-reference cycle.
+var _g_ground_c: Callable = Callable()
+var _g_plane_c: Callable = Callable()
 
 var _time: float = 0.0
 var _accumulator: float = 0.0
@@ -305,7 +450,10 @@ func _init() -> void:
 	_k4.resize(_N)
 	_tmp.resize(_N)
 	_trial.resize(_N)
+	_evt.resize(_N)
 	_aero.resize(3)
+	_g_ground_c = Callable(self, "_g_ground")
+	_g_plane_c = Callable(self, "_g_plane")
 
 
 # ---------------------------------------------------------------------------
@@ -325,31 +473,127 @@ static func make_throw_params() -> ThrowParams:
 	return ThrowParams.new()
 
 
+## Sandbox mode. UNCHANGED SIGNATURE — it has ~45 call sites across the suite.
+## It is now literally the one-room case of `configure_rooms()`, which is what
+## makes it impossible for the two modes to drift apart.
 func configure(disc: DiscDef, env: FlightEnvironment) -> void:
+	configure_rooms(disc, [env if env != null else make_environment()], [], 0)
+
+
+## Puzzle mode. `rooms` is an ordered array of `FlightEnvironment`, `portals` an
+## ordered array of `PortalLink` (see `portal_link.gd`), `start_room` an index
+## into `rooms`.
+##
+## Ordered arrays, not dictionaries: iteration order decides which of two
+## simultaneous crossings is taken, and `test_determinism.gd` requires that to be
+## reproducible.
+func configure_rooms(disc: DiscDef, rooms: Array, portals: Array,
+		start_room: int = 0) -> void:
 	assert(disc != null and disc.is_valid(), "DiscFlightSim.configure: invalid disc")
 	_disc = disc
-	_env = env if env != null else make_environment()
 	_mass = maxf(disc.mass_kg, 1e-4)
 	_inv_mass = 1.0 / _mass
 	_area = maxf(disc.area_m2, 1e-6)
 	_diameter = maxf(disc.diameter_m, 1e-4)
+	_disc_radius = _diameter * 0.5
 	_izz = maxf(disc.i_zz, 1e-9)
 	_ixy = maxf(disc.i_xy, 1e-9)
 	_table = disc.aero
 	_c_mq = _table.c_mq
 	_c_rp = _table.c_rp
 	_c_nr = _table.c_nr
-	_rho = maxf(_env.air_density, 0.0)
-	_gravity = _env.gravity
-	_wind = _env.wind
+
+	_rooms = rooms if not rooms.is_empty() else [make_environment()]
+	_portals = portals
+	_start_room = clampi(start_room, 0, _rooms.size() - 1)
+	_room = _start_room
+	_link_portals()
+	_apply_room_env(_room)
+
+
+## The ONLY writer of `_rho`, `_wind` and `_gravity`. `_derivs` reads them and is
+## otherwise untouched by portals, so the hot loop pays nothing for this.
+func _apply_room_env(room: int) -> void:
+	var env: FlightEnvironment = null
+	if room >= 0 and room < _rooms.size():
+		env = _rooms[room]
+	if env == null:
+		env = make_environment()
+	_env = env
+	_rho = maxf(env.air_density, 0.0)
+	_gravity = env.gravity
+	_wind = env.wind
+
+
+## Validate every link once, and work out which link is which one's return trip.
+## Per PORTAL_CONTRACT §3.1 this happens at LINK time, never per crossing.
+func _link_portals() -> void:
+	var n: int = _portals.size()
+	_portal_count = n
+	_armed.resize(n)
+	_return_link.resize(n)
+	for i in n:
+		var lk: PortalLinkT = _portals[i]
+		lk.relink()
+		_armed[i] = 1
+		_return_link[i] = -1
+	# Link j is link i's return trip if j's entrance IS i's exit. Ordered scan,
+	# first match wins, so the pairing is deterministic even if a level author
+	# ships three portals sharing a surface. `j == i` is deliberately NOT skipped:
+	# a self-loop (a portal whose exit is itself) is its own return trip, and it
+	# is the arrangement most likely to produce an event storm.
+	for i in n:
+		var exit_xf: Transform3D = (_portals[i] as PortalLinkT).exit_transform
+		for j in n:
+			if (_portals[j] as PortalLinkT).entrance.is_equal_approx(exit_xf):
+				_return_link[i] = j
+				break
 
 
 func get_disc() -> DiscDef:
 	return _disc
 
 
+## The CURRENT room's environment. In sandbox mode this is the object passed to
+## `configure()`, unchanged.
 func get_environment() -> FlightEnvironment:
 	return _env
+
+
+func get_rooms() -> Array:
+	return _rooms
+
+
+func get_portals() -> Array:
+	return _portals
+
+
+## Index of the room the disc is in right now.
+func get_room() -> int:
+	return _room
+
+
+## Portal crossings since `launch()`.
+func get_crossing_count() -> int:
+	return _crossings
+
+
+## The wall hit that ended the flight, as the oracle reported it; `{}` if the
+## flight ended on the ground or is still going.
+func get_last_impact() -> Dictionary:
+	return _last_impact
+
+
+## One entry per portal crossing since `launch()`:
+## `{t, link, enter, exit, to_room}`.
+func get_crossing_log() -> Array:
+	return _crossing_log
+
+
+## Substeps in which the event cap was hit. Non-zero means a pathological portal
+## arrangement, not a physics result — surface it on a dev overlay.
+func get_event_overflows() -> int:
+	return _event_overflows
 
 
 func launch(p: ThrowParams) -> void:
@@ -420,6 +664,18 @@ func launch(p: ThrowParams) -> void:
 	_launched = true
 	_failed = false
 	_last_omega_t = Vector3.ZERO
+
+	# Rooms/portals reset. In sandbox mode `_start_room` is 0, `_armed` is empty
+	# and `_apply_room_env(0)` rewrites the same three scalars with the same
+	# values — the same code path, not a mode branch.
+	_room = _start_room
+	_apply_room_env(_room)
+	for i in _armed.size():
+		_armed[i] = 1
+	_crossings = 0
+	_event_overflows = 0
+	_last_impact = {}
+	_crossing_log = []
 	_launch_position = pos
 	_launch_spin = spin_rad
 	_launch_forward = Vector3(vdir.x, 0.0, vdir.z)
@@ -477,6 +733,31 @@ func get_state_vector() -> PackedFloat64Array:
 	return _y.duplicate()
 
 
+## Signed spin about WORLD UP. Positive = the RHBH sense seen from above.
+##
+## Differs from `DiscState.spin` after a portal that inverts the disc, and that
+## difference is the point of this accessor (PORTAL_CONTRACT §6). `spin` is
+## defined relative to the disc's OWN normal, and `omega_n` is genuinely
+## invariant across a crossing — but when the portal turns the disc upside down
+## the normal moves, so a state that still reports `spin = +153` is now spinning
+## the anticlockwise way as seen from above and will curve the OTHER way.
+## The state is right; the label is what goes stale.
+##
+## Anything asking "which way will this disc curve" wants this, not `spin`.
+## Anything asking "how much gyroscopic stiffness is left" wants `spin`.
+##
+## Pure function of the integration state: the total world angular velocity is
+## the tumble rate plus `omega_n` about the normal, and in normal flight the
+## tumble rate is exactly zero (precession is carried by the quaternion
+## derivative, not by the state), so this reduces to `-omega_n * n.y`.
+func get_world_spin() -> float:
+	var q := Quaternion(_y[6], _y[7], _y[8], _y[9]).normalized()
+	var n: Vector3 = q * Vector3(0.0, 1.0, 0.0)
+	var wy: float = _y[11] + n.y * _y[13]
+	# CONTRACT §1: positive spin = RHBH = angular velocity pointing DOWN.
+	return -wy
+
+
 func is_flying() -> bool:
 	return _flying and not _failed
 
@@ -506,6 +787,12 @@ func simulate_full(p: ThrowParams) -> FlightResult:
 	var saved_lr := _launch_right
 	var saved_lf := _launch_forward
 	var saved_ls := _launch_spin
+	var saved_room := _room
+	var saved_armed := _armed.duplicate()
+	var saved_crossings := _crossings
+	var saved_overflows := _event_overflows
+	var saved_impact := _last_impact
+	var saved_clog := _crossing_log
 
 	var r := _run_to_landing(p)
 
@@ -523,6 +810,15 @@ func simulate_full(p: ThrowParams) -> FlightResult:
 	_launch_right = saved_lr
 	_launch_forward = saved_lf
 	_launch_spin = saved_ls
+	_room = saved_room
+	_armed = saved_armed
+	_crossings = saved_crossings
+	_event_overflows = saved_overflows
+	_last_impact = saved_impact
+	_crossing_log = saved_clog
+	# The room scalars are derived, so restore them from the restored room rather
+	# than saving three more copies.
+	_apply_room_env(_room)
 	return r
 
 
@@ -591,6 +887,10 @@ func _run_to_landing(p: ThrowParams) -> FlightResult:
 	r.max_right_m = max_right
 	r.max_left_m = max_left
 	r.failed = _failed
+	r.crossings = _crossings
+	r.end_room = _room
+	r.impact = _last_impact
+	r.crossing_points = _crossing_log.duplicate()
 	return r
 
 
@@ -614,49 +914,236 @@ func _make_sample() -> Dictionary:
 	}
 
 
-## One fixed substep with ground handling. Returns false if the flight ended
-## (landed or failed).
+## One fixed substep. Returns false if the flight ended (landed, hit a wall, or
+## failed).
+##
+## The substep is SPLIT at every event inside it: integrate the remaining time,
+## find the earliest event, re-integrate exactly up to it, act on it, repeat with
+## what is left. In sandbox mode there are no portals and no oracle, so the loop
+## runs exactly once and this is the code it always was — the same branches in
+## the same order, `_time += dt` once, `_step_count += 1` once.
+##
+## Splitting rather than looking the environment up per RK4 stage is not a
+## refinement, it is the difference between converging and not; see the header.
 func _substep(dt: float) -> bool:
-	for i in _N:
-		_prev[i] = _y[i]
-	var y0: float = _y[1]
-	_rk4(_y, dt)
-	if not _finite_state():
-		_failed = true
-		_flying = false
-		return false
-	if _y[1] <= ground_height_m and y0 > ground_height_m:
-		_resolve_landing(dt)
-		return false
-	if _y[1] <= ground_height_m and y0 <= ground_height_m:
-		# Launched at or below the ground plane; nothing sensible to integrate.
-		_time += dt
-		_flying = false
-		_record_trajectory()
-		return false
-	_time += dt
+	var remaining: float = dt
+	var events: int = 0
+	while true:
+		for i in _N:
+			_prev[i] = _y[i]
+		var y0: float = _y[1]
+		_rk4(_y, remaining)
+		if not _finite_state():
+			_failed = true
+			_flying = false
+			return false
+
+		var kind: int = _find_event(remaining, y0, MAX_EVENTS_PER_SUBSTEP - events)
+		if kind != _EVT_NONE:
+			if kind == _EVT_GROUND:
+				_resolve_landing(remaining)
+				return false
+
+			if kind == _EVT_WALL:
+				_locate_event(_g_plane_c, remaining, _evt)
+				for j in _N:
+					_y[j] = _evt[j]
+				_time += _located_dt
+				_step_count += 1
+				_flying = false
+				# Unconditionally, like the landing path: the point the flight
+				# ENDED at belongs in the trajectory whether or not it falls on a
+				# sampling boundary.
+				if _y[1] > _max_height:
+					_max_height = _y[1]
+				_trajectory.append(Vector3(_y[0], _y[1], _y[2]))
+				return false
+
+			# _EVT_PORTAL.
+			_locate_event(_g_plane_c, remaining, _evt)
+			for j in _N:
+				_y[j] = _evt[j]
+			_time += _located_dt
+			remaining -= _located_dt
+			events += 1
+			_apply_portal(_evt_index)
+			# The disc is now in the destination room, with that room's density,
+			# wind and gravity already hoisted. Whatever is left of the substep
+			# integrates under a single constant environment, as does the part
+			# already integrated. That is the invariant.
+			if remaining > 0.0:
+				continue
+			break
+
+		if _y[1] <= ground_height_m and y0 <= ground_height_m:
+			# Launched at or below the ground plane; nothing sensible to integrate.
+			_time += remaining
+			_flying = false
+			_record_trajectory()
+			return false
+
+		_time += remaining
+		break
+
 	_step_count += 1
 	_record_trajectory()
 	return true
 
 
+# --- event functions -------------------------------------------------------
+# Roots of these are what `_locate_event` solves for. Both take the raw double
+# state so no precision is lost round-tripping through a single-precision
+# Vector3.
+
+func _g_ground(y: PackedFloat64Array) -> float:
+	return y[1] - ground_height_m
+
+
+func _g_plane(y: PackedFloat64Array) -> float:
+	return (y[0] - _plane_ox) * _plane_nx + (y[1] - _plane_oy) * _plane_ny \
+		+ (y[2] - _plane_oz) * _plane_nz
+
+
+## Find the EARLIEST event inside the segment just integrated (`_prev` -> `_y`).
+## Sets `_evt_kind` / `_evt_index` and, for planar events, the `_plane_*` fields
+## that `_g_plane` reads. Returns the kind.
+##
+## Ordering is by the LINEAR estimate of the crossing fraction, which is what
+## makes it cheap; the winner is then located exactly. At 0.1125 m per substep,
+## and with portal planes required to be at least a disc diameter apart, the
+## linear estimate cannot reorder two genuinely separated events.
+func _find_event(seg_dt: float, y0: float, budget: int) -> int:
+	_evt_kind = _EVT_NONE
+	_evt_index = -1
+	var best_frac: float = INF
+
+	# --- ground. Same comparison, in the same order, as before portals existed.
+	if _y[1] <= ground_height_m and y0 > ground_height_m:
+		var gs: float = y0 - ground_height_m
+		var ge: float = _y[1] - ground_height_m
+		var den: float = gs - ge
+		best_frac = 1.0 if absf(den) < 1e-12 else clampf(gs / den, 0.0, 1.0)
+		_evt_kind = _EVT_GROUND
+
+	if budget <= 0:
+		if not _portals.is_empty() or _has_oracle:
+			_event_overflows += 1
+		return _evt_kind
+
+	# --- portals. In sandbox mode `_portals` is empty and this loop does not
+	# execute; it is the same code path, not an `if portal_mode` branch. Nothing
+	# above it is computed speculatively either, so sandbox mode pays for the
+	# loop bound and nothing else.
+	for i in _portal_count:
+		var lk: PortalLinkT = _portals[i]
+		if _armed[i] == 0:
+			# Re-arm on DISTANCE, not on a timer, so a disc that genuinely curves
+			# back through the portal it came out of still works.
+			if lk.signed_distance(_y[0], _y[1], _y[2]) > REARM_RADII * _disc_radius:
+				_armed[i] = 1
+			continue
+		if not lk.enabled or lk.from_room != _room:
+			continue
+		var gs: float = lk.signed_distance(_prev[0], _prev[1], _prev[2])
+		var ge: float = lk.signed_distance(_y[0], _y[1], _y[2])
+		# STRICT sign change, and strictly positive on the entry side. A `>=`
+		# here is what turns a disc resting on the plane into an event storm.
+		if gs <= 0.0 or ge >= 0.0:
+			continue
+		var span: float = gs - ge
+		# Grazing: the root is ill-conditioned when the disc is sliding along the
+		# plane rather than through it.
+		if span < MIN_CROSSING_SPEED * seg_dt:
+			continue
+		var f: float = clampf(gs / span, 0.0, 1.0)
+		if f >= best_frac:
+			continue
+		# Aperture, INSET BY THE DISC RADIUS: a disc whose centre clears the rim
+		# would otherwise scythe visibly through solid wall. Tested at the linear
+		# estimate of the crossing point, which is within ~1 mm of the root —
+		# three orders below the 0.105 m inset, so the decision is never in doubt.
+		if not lk.aperture_contains(Vector3(
+				_prev[0] + (_y[0] - _prev[0]) * f,
+				_prev[1] + (_y[1] - _prev[1]) * f,
+				_prev[2] + (_y[2] - _prev[2]) * f), _disc_radius):
+			continue
+		best_frac = f
+		_evt_kind = _EVT_PORTAL
+		_evt_index = i
+
+	if _evt_kind == _EVT_PORTAL:
+		var lk: PortalLinkT = _portals[_evt_index]
+		_set_event_plane(lk.origin, lk.normal)
+
+	# --- walls, via the injected oracle (PORTAL_CONTRACT §7).
+	if _has_oracle:
+		var p0 := Vector3(_prev[0], _prev[1], _prev[2])
+		var p1 := Vector3(_y[0], _y[1], _y[2])
+		var hit: Dictionary = hit_oracle.call(p0, p1)
+		if not hit.is_empty():
+			var f: float = clampf(float(hit.get("fraction", 1.0)), 0.0, 1.0)
+			var seg_len: float = p0.distance_to(p1)
+			# A portal is set INTO a wall, so on a near-tie the portal must win.
+			var tie: float = 0.0
+			if _evt_kind == _EVT_PORTAL:
+				tie = (PORTAL_WALL_TIE_M / seg_len) if seg_len > 1e-9 else 1.0
+			if f < best_frac - tie:
+				var pos: Vector3 = hit.get("position", p0.lerp(p1, f))
+				var nrm: Vector3 = hit.get("normal", Vector3.ZERO)
+				if nrm.length_squared() < 1e-12:
+					nrm = (p0 - p1).normalized()
+				# The oracle should report the normal facing back toward `from`,
+				# as Godot's raycast does. Fix it rather than trust it: a flipped
+				# normal makes `_g_plane` have no sign change and the solve
+				# silently returns the far end of the segment.
+				if (p0 - pos).dot(nrm) < 0.0:
+					nrm = -nrm
+				best_frac = f
+				_evt_kind = _EVT_WALL
+				_evt_index = -1
+				_last_impact = hit
+				_set_event_plane(pos, nrm)
+
+	return _evt_kind
+
+
+func _set_event_plane(o: Vector3, n: Vector3) -> void:
+	_plane_ox = o.x
+	_plane_oy = o.y
+	_plane_oz = o.z
+	_plane_nx = n.x
+	_plane_ny = n.y
+	_plane_nz = n.z
+
+
+## Locate the root of `g` inside a step of length `dt` starting from `_prev`, and
+## write the state AT the root into `out`. Returns the fraction of `dt` used;
+## `_located_dt` carries the same thing as an absolute time.
+##
 ## CONTRACT §4: interpolate the ground crossing inside the final substep — a
-## 1/240 step at 25 m/s is 10 cm of landing error otherwise.
+## 1/240 step at 25 m/s is 10 cm of landing error otherwise. The same applies to
+## a portal crossing, and to a wall.
 ##
 ## We do not interpolate the *output*; we re-integrate a shortened step, so the
-## landing state is a genuine solution of the ODE. The crossing fraction starts
-## from the linear estimate and is refined by secant iteration on the real
-## integrator, which converges to well under a millimetre in 3-4 passes.
-func _resolve_landing(dt: float) -> void:
-	var y_start: float = _prev[1]
-	var y_end: float = _y[1]
-	var denom: float = y_start - y_end
-	var frac: float = 1.0 if absf(denom) < 1e-12 else clampf(
-		(y_start - ground_height_m) / denom, 0.0, 1.0)
+## event state is a genuine solution of the ODE. The fraction starts from the
+## linear estimate and is refined by secant iteration on the real integrator,
+## which converges to well under a millimetre in 3-4 passes. The iteration count
+## is FIXED, not tolerance-driven, because determinism matters more here than
+## the last ulp.
+##
+## This is the one and only event locator: ground, portals and walls are all
+## callers. Generalising the landing solver rather than writing a second
+## mechanism is what lets CI prove the landing path did not move.
+func _locate_event(g: Callable, dt: float, out: PackedFloat64Array) -> float:
+	var g_start: float = g.call(_prev)
+	var g_end: float = g.call(_y)
+	var denom: float = g_start - g_end
+	var frac: float = 1.0 if absf(denom) < 1e-12 else clampf(g_start / denom, 0.0, 1.0)
 
 	var f_prev: float = 0.0
-	var g_prev: float = y_start - ground_height_m
-	var best := _y.duplicate()
+	var g_prev: float = g_start
+	for j in _N:
+		out[j] = _y[j]
 	var best_dt: float = dt
 
 	for _i in LANDING_REFINEMENTS:
@@ -665,28 +1152,148 @@ func _resolve_landing(dt: float) -> void:
 			_trial[j] = _prev[j]
 		var sub: float = dt * frac
 		_rk4(_trial, sub)
-		var g: float = _trial[1] - ground_height_m
-		best = _trial.duplicate()
+		var gv: float = g.call(_trial)
+		for j in _N:
+			out[j] = _trial[j]
 		best_dt = sub
-		if absf(g) < 1e-7:
+		if absf(gv) < 1e-7:
 			break
-		var dg: float = g - g_prev
+		var dg: float = gv - g_prev
 		if absf(dg) < 1e-14:
 			break
-		var next_frac: float = frac - g * (frac - f_prev) / dg
+		var next_frac: float = frac - gv * (frac - f_prev) / dg
 		f_prev = frac
-		g_prev = g
+		g_prev = gv
 		frac = clampf(next_frac, 0.0, 1.0)
 
+	_located_dt = best_dt
+	return best_dt / dt if dt > 0.0 else 0.0
+
+
+func _resolve_landing(dt: float) -> void:
+	_locate_event(_g_ground_c, dt, _evt)
 	for j in _N:
-		_y[j] = best[j]
+		_y[j] = _evt[j]
 	_y[1] = ground_height_m
-	_time += best_dt
+	_time += _located_dt
 	_step_count += 1
 	_flying = false
 	if _y[1] > _max_height:
 		_max_height = _y[1]
 	_trajectory.append(Vector3(_y[0], _y[1], _y[2]))
+
+
+## Carry the state through portal link `i`. The disc is AT the entrance plane;
+## `_y` holds the located crossing state.
+##
+## PORTAL_CONTRACT §2, and the last row is the interesting one:
+##
+##     position   y[0..2]    M * p            (full affine)
+##     velocity   y[3..5]    M.basis * v      (basis only, no translation)
+##     quaternion y[6..9]    R * q            (left-multiply)
+##     tumble     y[10..12]  M.basis * w
+##     omega_n    y[13]      UNCHANGED
+##
+## `omega_n` is INVARIANT: `w' . n' = (Rw) . (Rn) = w . n` under any proper
+## rotation. Measured bit-identical across a crossing. Our state representation —
+## a non-spinning-frame quaternion plus a scalar spin — is exactly the right one
+## for portals, because the quantity that would be hardest to transform correctly
+## needs no transform at all. `_last_omega_t` is a derived cache rewritten by the
+## next `_derivs` call, so it is not transformed either.
+##
+## If a REFLECTION could ever reach here, `w' = R*w` would be wrong: angular
+## velocity is a pseudovector and needs `w' = det(R) * (R*w)`, and turn and fade
+## would silently invert. `PortalLink.relink()` rejects and repairs reflections
+## precisely so this function never has to think about it.
+##
+## Arithmetic is done in doubles against `xform64` rather than through
+## `Transform3D`, which is single precision — the whole point of the 14-double
+## state is not to round a 100 m position to a float32 ulp, and doing it at every
+## crossing would undo that.
+func _apply_portal(i: int) -> void:
+	var lk: PortalLinkT = _portals[i]
+	var m: PackedFloat64Array = lk.xform64
+	var im := PortalLinkT.XF_M
+	var it := PortalLinkT.XF_T
+	var iq := PortalLinkT.XF_Q
+	var inm := PortalLinkT.XF_N
+
+	var enter_pos := Vector3(_y[0], _y[1], _y[2])
+
+	var px: float = _y[0]
+	var py: float = _y[1]
+	var pz: float = _y[2]
+	_y[0] = m[im + 0] * px + m[im + 1] * py + m[im + 2] * pz + m[it + 0]
+	_y[1] = m[im + 3] * px + m[im + 4] * py + m[im + 5] * pz + m[it + 1]
+	_y[2] = m[im + 6] * px + m[im + 7] * py + m[im + 8] * pz + m[it + 2]
+
+	var vx: float = _y[3]
+	var vy: float = _y[4]
+	var vz: float = _y[5]
+	_y[3] = m[im + 0] * vx + m[im + 1] * vy + m[im + 2] * vz
+	_y[4] = m[im + 3] * vx + m[im + 4] * vy + m[im + 5] * vz
+	_y[5] = m[im + 6] * vx + m[im + 7] * vy + m[im + 8] * vz
+
+	var wx: float = _y[10]
+	var wy: float = _y[11]
+	var wz: float = _y[12]
+	_y[10] = m[im + 0] * wx + m[im + 1] * wy + m[im + 2] * wz
+	_y[11] = m[im + 3] * wx + m[im + 4] * wy + m[im + 5] * wz
+	_y[12] = m[im + 6] * wx + m[im + 7] * wy + m[im + 8] * wz
+
+	# Hamilton product r * q, in doubles.
+	var rx: float = m[iq + 0]
+	var ry: float = m[iq + 1]
+	var rz: float = m[iq + 2]
+	var rw: float = m[iq + 3]
+	var qx: float = _y[6]
+	var qy: float = _y[7]
+	var qz: float = _y[8]
+	var qw: float = _y[9]
+	var ox: float = rw * qx + rx * qw + ry * qz - rz * qy
+	var oy: float = rw * qy - rx * qz + ry * qw + rz * qx
+	var oz: float = rw * qz + rx * qy - ry * qx + rz * qw
+	var ow: float = rw * qw - rx * qx - ry * qy - rz * qz
+	var qn: float = sqrt(ox * ox + oy * oy + oz * oz + ow * ow)
+	if qn > 1e-12:
+		var inv: float = 1.0 / qn
+		ox *= inv
+		oy *= inv
+		oz *= inv
+		ow *= inv
+	_y[6] = ox
+	_y[7] = oy
+	_y[8] = oz
+	_y[9] = ow
+
+	# y[13] (omega_n) is deliberately NOT touched. See the doc comment.
+
+	# Re-crossing guard: step off the exit plane by 0.1 mm, so the very next
+	# sign test is unambiguously on the front side.
+	_y[0] += m[inm + 0] * exit_nudge_m
+	_y[1] += m[inm + 1] * exit_nudge_m
+	_y[2] += m[inm + 2] * exit_nudge_m
+
+	_room = lk.to_room
+	_apply_room_env(_room)
+
+	# The path is DISCONTINUOUS here, and `get_trajectory()` is a plain polyline
+	# with no break markers — so record the pair separately rather than pushing a
+	# teleport segment into it and leaving Track P2 to guess.
+	_crossing_log.append({
+		"t": _time,
+		"link": i,
+		"enter": enter_pos,
+		"exit": Vector3(_y[0], _y[1], _y[2]),
+		"to_room": _room,
+	})
+
+	# Disarm the way back until the disc is clear of it. Belt and braces with the
+	# nudge: the nudge handles the same substep, this handles the next few.
+	var back: int = _return_link[i]
+	if back >= 0:
+		_armed[back] = 0
+	_crossings += 1
 
 
 func _record_trajectory() -> void:

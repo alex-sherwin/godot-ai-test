@@ -549,6 +549,231 @@ REFERENCE_THROWS: dict[str, dict] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# portal mode (PORTAL_CONTRACT) -- ADDITIVE. Nothing above this point changes.
+#
+# A second, independent implementation of the portal transform and of the
+# split-at-the-crossing substep, so Track P1's GDScript can be diffed against
+# something that shares no code with it. That is how the 0.4% precession-gain
+# disagreement was found; the same argument applies here, and the portal
+# transform has more places to hide a sign error than the flight model does.
+#
+# Note the state vectors are DIFFERENT SHAPES on the two sides: this integrates
+# the disc normal directly (10 elements), the GDScript carries a quaternion (14).
+# Agreement therefore is not a shared-bug artefact.
+# ---------------------------------------------------------------------------
+
+#: 180 degrees about the portal's LOCAL +Y, exactly. This is a rotation, not a
+#: mirror -- which is what keeps det(M) = +1 for any rigid pair.
+_R_Y_PI = np.array([[-1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, -1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0]])
+
+
+def portal_xform(basis: np.ndarray, origin: np.ndarray) -> np.ndarray:
+    """A 4x4 world transform for a portal. Local +Z is the surface normal."""
+    m = np.eye(4)
+    m[:3, :3] = basis
+    m[:3, 3] = origin
+    return m
+
+
+def portal_matrix(entrance: np.ndarray, exit_xf: np.ndarray) -> np.ndarray:
+    """M = T_B @ R_y(pi) @ T_A^-1  (PORTAL_CONTRACT §1).
+
+    Composition is right to left: T_A^-1 takes world into A's local frame, the
+    flip happens THERE (so it is about the portal's own up, not the world's),
+    then T_B puts it back into the world at B.
+    """
+    return exit_xf @ _R_Y_PI @ np.linalg.inv(entrance)
+
+
+def _portal_apply(m: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Carry a 10-element state through M.
+
+    position full affine; velocity and normal by the rotation only; SPIN
+    UNCHANGED. Spin is invariant because it is the component of angular velocity
+    along the disc normal, and (R w).(R n) = w.n for any proper rotation -- the
+    quantity that would be hardest to transform needs no transform at all.
+    """
+    out = y.copy()
+    r = m[:3, :3]
+    out[0:3] = r @ y[0:3] + m[:3, 3]
+    out[3:6] = r @ y[3:6]
+    out[6:9] = _unit(r @ y[6:9])
+    return out
+
+
+def simulate_portal(
+    disc: DiscDefinition,
+    p: ThrowParams,
+    entrance: np.ndarray,
+    exit_xf: np.ndarray,
+    env_a: Environment,
+    env_b: Environment,
+    dt: float = DT,
+    sample_every: int = 12,
+    refinements: int = 6,
+) -> dict:
+    """One throw through one portal, with the substep SPLIT at the crossing.
+
+    Splitting -- rather than swapping the environment at the next substep
+    boundary, or looking it up per RK4 stage -- is not a refinement. RK4's error
+    analysis assumes Lipschitz continuity, and stages straddling an interface
+    violate it, so the per-stage scheme suffers order reduction and its error
+    can GROW as dt shrinks. Splitting keeps every RK4 step inside exactly one
+    constant environment.
+    """
+    env = env_a
+    m = portal_matrix(entrance, exit_xf)
+    origin = entrance[:3, 3]
+    normal = _unit(entrance[:3, 2])           # local +Z is the surface normal
+
+    def g(state: np.ndarray) -> float:
+        return float(np.dot(state[0:3] - origin, normal))
+
+    h, e = p.launch_heading_rad, p.launch_angle_rad
+    fwd = np.array([math.sin(h), 0.0, -math.cos(h)])
+    vdir = _unit(fwd * math.cos(e) + np.array([0.0, 1.0, 0.0]) * math.sin(e))
+    right = _unit(np.cross(vdir, np.array([0.0, 1.0, 0.0])))
+    n = _unit(np.cross(right, vdir))
+    n = _rotate(n, right, p.nose_angle_rad)
+    n = _rotate(n, vdir, -p.hyzer_angle_rad)
+    y = np.concatenate([[0.0, p.launch_height_m, 0.0], vdir * p.speed_mps, n,
+                        [2.0 * math.pi * p.spin_rps]])
+
+    samples: list[dict] = []
+    crossings: list[dict] = []
+    t = 0.0
+    step = 0
+    landed = False
+
+    def record(tt: float) -> None:
+        samples.append({
+            "t": round(tt, 9),
+            "pos": [float(v) for v in y[0:3]],
+            "vel": [float(v) for v in y[3:6]],
+            "normal": [float(v) for v in _unit(y[6:9])],
+            "spin": float(y[9]),
+        })
+
+    record(t)
+    while t < MAX_TIME_S:
+        remaining = dt
+        ended = False
+        for _ in range(4):                      # MAX_EVENTS_PER_SUBSTEP
+            g0 = g(y)
+            nxt = _rk4(disc, y, env, remaining)
+            g1 = g(nxt)
+            # ground first: it ends the flight
+            if nxt[1] <= 0.0 < y[1]:
+                frac = y[1] / (y[1] - nxt[1])
+                for _r in range(refinements):
+                    trial = _rk4(disc, y, env, remaining * frac)
+                    if abs(trial[1]) < 1e-12:
+                        break
+                    frac = max(0.0, min(1.0, frac - trial[1] * frac / (y[1] - trial[1])
+                                        if abs(y[1] - trial[1]) > 1e-15 else frac))
+                y = _rk4(disc, y, env, remaining * frac)
+                y[1] = 0.0
+                t += remaining * frac
+                landed = ended = True
+                break
+            # portal: STRICT sign change, entry side strictly positive
+            if len(crossings) == 0 and g0 > 0.0 > g1:
+                frac = g0 / (g0 - g1)
+                f_prev, gp = 0.0, g0
+                for _r in range(refinements):
+                    trial = _rk4(disc, y, env, remaining * frac)
+                    gv = g(trial)
+                    if abs(gv) < 1e-9:
+                        break
+                    dg = gv - gp
+                    if abs(dg) < 1e-15:
+                        break
+                    frac, f_prev, gp = (max(0.0, min(1.0,
+                        frac - gv * (frac - f_prev) / dg)), frac, gv)
+                sub = remaining * frac
+                y = _portal_apply(m, _rk4(disc, y, env, sub))
+                t += sub
+                remaining -= sub
+                env = env_b                     # the SPLIT: second half, new air
+                crossings.append({"t": round(t, 9),
+                                  "pos": [float(v) for v in y[0:3]]})
+                if remaining <= 0.0:
+                    break
+                continue
+            y = nxt
+            t += remaining
+            break
+        if ended:
+            break
+        step += 1
+        if step % sample_every == 0:
+            record(t)
+    record(t)
+
+    pos = np.array([s["pos"] for s in samples])
+    return {
+        "disc": disc.id,
+        "portal_throw": {
+            "speed_mps": p.speed_mps, "spin_rps": p.spin_rps,
+            "nose_angle_deg": math.degrees(p.nose_angle_rad),
+            "hyzer_angle_deg": math.degrees(p.hyzer_angle_rad),
+            "launch_angle_deg": math.degrees(p.launch_angle_rad),
+            "launch_height_m": p.launch_height_m,
+            "launch_heading_deg": math.degrees(p.launch_heading_rad),
+        },
+        "entrance": [float(v) for v in entrance[:3, :].T.reshape(-1)],
+        "exit": [float(v) for v in exit_xf[:3, :].T.reshape(-1)],
+        "rooms": [
+            {"air_density": env_a.air_density, "wind": [float(v) for v in env_a.wind],
+             "gravity": env_a.gravity},
+            {"air_density": env_b.air_density, "wind": [float(v) for v in env_b.wind],
+             "gravity": env_b.gravity},
+        ],
+        "dt": dt, "sample_every": sample_every,
+        "crossings": crossings,
+        "summary": {
+            "landed": landed,
+            "flight_time_s": float(samples[-1]["t"]),
+            "landing_position": [float(v) for v in y[0:3]],
+            "max_height_m": float(pos[:, 1].max()),
+            "final_spin": float(y[9]),
+        },
+        "portal_samples": samples,
+    }
+
+
+def portal_reference_throw() -> dict:
+    """The fixture Track P1's `test_portal.gd` diffs against.
+
+    A wall-to-wall pair (both using world-up, so M is a pure yaw -- the class
+    §6 says wall portals must always be in), crossing into thinner air with a
+    crosswind and lower gravity. Basis entries are 0/+-1 and origins are whole
+    metres so the transforms survive Godot's single-precision Transform3D
+    exactly, leaving the flight model as the only thing under comparison.
+    """
+    disc = load_disc("destroyer")
+    entrance = portal_xform(np.eye(3), np.array([0.0, 5.0, -40.0]))
+    # 90 degrees of yaw, written out exactly rather than via sin/cos.
+    yaw90 = np.array([[0.0, 0.0, 1.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]])
+    exit_xf = portal_xform(yaw90, np.array([60.0, 5.0, 20.0]))
+    return simulate_portal(
+        disc,
+        ThrowParams(speed_mps=27.0, spin_rps=25.0,
+                    nose_angle_rad=math.radians(2.0),
+                    hyzer_angle_rad=math.radians(8.0),
+                    launch_angle_rad=math.radians(12.0),
+                    launch_height_m=1.4,
+                    launch_heading_rad=math.radians(15.0)),
+        entrance, exit_xf,
+        Environment(),
+        Environment(air_density=0.60, wind=np.array([6.0, 0.0, 0.0]), gravity=3.72),
+    )
+
+
 def hyzer_sweep(disc_id: str = "destroyer") -> list[dict]:
     """Release angle sensitivity at fixed power.
 
@@ -834,6 +1059,11 @@ def main(argv: list[str] | None = None) -> int:
                         "rows": hyzer}, indent=1) + "\n")
         (VALIDATION_DIR / "shotshaper_cross_check.json").write_text(
             json.dumps(cross, indent=1) + "\n")
+        # PORTAL_CONTRACT. Keys are `portal_throw` / `portal_samples` rather than
+        # `throw` / `samples` on purpose: `test_crossval.gd` picks fixtures up by
+        # that shape, and this one is compared by `test_portal.gd` instead.
+        (VALIDATION_DIR / "portal_crossing.json").write_text(
+            json.dumps(portal_reference_throw(), indent=1) + "\n")
         (VALIDATION_DIR / "README.md").write_text(
             "# Validation fixtures\n\n"
             "Generated by `python -m tools.aero.validate --dump`.\n\n"
