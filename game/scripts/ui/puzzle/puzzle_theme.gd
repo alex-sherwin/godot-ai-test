@@ -52,6 +52,11 @@ const DIVE_BORDER   := Color("96591a")
 const PORTAL        := Color("5aa8ee")
 const PORTAL_BRIGHT := Color("a9e4ff")
 
+## A portal YOU open with a portal disc, and the rectangle predicting where it
+## will land. Violet, matching `Portal.STYLE[Kind.DISC]` in the 3D renderer, and
+## used for nothing else: "you made this one, and it is spent if you miss".
+const PLACED        := Color("c76bff")
+
 ## Ghost trajectory: bright at the tee, fading to nothing where the prediction
 ## legitimately stops.
 const GHOST         := Color("9fd2ff")

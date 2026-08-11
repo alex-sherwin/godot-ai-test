@@ -85,6 +85,14 @@ func add_aperture(face: int, rect: Rect2) -> void:
 	_holes[face].append(rect)
 
 
+## Forget every hole. A puzzle level opens and closes portals between throws — a
+## portal disc cuts a new aperture, a button opens a barred pair — so the holes
+## have to be re-declared and the shell re-cut without rebuilding the room, its
+## Environment or its light.
+func clear_apertures() -> void:
+	_holes.clear()
+
+
 ## Where a portal of `w` x `h` metres goes if it is mounted flush in `face` at
 ## offset `(u, v)` from the face centre.
 ##

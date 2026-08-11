@@ -51,6 +51,11 @@ var ghost_end_kind: String = ""
 var ghost_end_position: Vector3 = Vector3.ZERO
 ## True when the portal the prediction stops at is a DIVE portal.
 var ghost_end_dive: bool = false
+## True when the prediction stops against a PORTALABLE panel rather than stone.
+## The marker then reads as an opportunity (violet, the disc-placed portal
+## colour) instead of as a failure, because with a portal disc armed that is
+## exactly what it is.
+var ghost_end_portalable: bool = false
 ## What the marker says. Set by the mode controller, which is the only thing
 ## that knows what `end_id` refers to.
 var ghost_end_label: String = ""
@@ -240,7 +245,9 @@ func _draw_stop_marker() -> void:
 	match ghost_end_kind:
 		"portal":
 			color = PT.DIVE if ghost_end_dive else PT.PORTAL
-		"wall", "barrier", "failed":
+		"wall":
+			color = PT.PLACED if ghost_end_portalable else T.BAD_TEXT
+		"barrier", "failed":
 			color = T.BAD_TEXT
 		_:
 			color = T.TEXT_FAINT
@@ -265,7 +272,7 @@ func _draw_stop_marker() -> void:
 
 func _draw_aim_line() -> void:
 	var tee := controller.tee_position
-	var target := controller.reticle_position()
+	var target := controller.reticle_draw_position()
 	var a: Variant = _project(tee)
 	var b: Variant = _project(target)
 	if a == null or b == null:
@@ -281,24 +288,41 @@ func _draw_aim_line() -> void:
 	_draw_dashed(pts, Color(PT.AIM.r, PT.AIM.g, PT.AIM.b, 0.55), 2.0, 10.0, 7.0)
 
 
+## The reticle is a POWER GAUGE on the launch room's floor, not a landing
+## prediction — the disc goes through a portal and lands in another room
+## entirely, often 130 m to the side. Bounded to the room (see
+## `PuzzleAimController.reticle_draw_position`), it slides to the wall and stops
+## there; when it does, the ring goes hollow and the tag says the carry runs
+## past the room rather than leaving a solid marker floating in the void.
 func _draw_reticle() -> void:
-	var target := controller.reticle_position()
+	var target := controller.reticle_draw_position()
 	var at: Variant = _project(target)
 	if at == null:
 		return
 	var p: Vector2 = at
 	var pulse: float = 1.0 if controller.drag == PuzzleAimController.Drag.AIM else 0.72
-	var c := Color(PT.AIM.r, PT.AIM.g, PT.AIM.b, pulse)
+	var clamped := controller.reticle_clamped()
+	var c := Color(PT.AIM.r, PT.AIM.g, PT.AIM.b, pulse * (0.55 if clamped else 1.0))
 
 	draw_arc(p, 16.0, 0.0, TAU, 40, c, 2.0, true)
-	draw_arc(p, 5.0, 0.0, TAU, 20, Color(c.r, c.g, c.b, 0.6), 1.5, true)
-	for a: float in [0.0, PI * 0.5, PI, PI * 1.5]:
-		var d := Vector2(cos(a), sin(a))
-		draw_line(p + d * 16.0, p + d * 24.0, c, 2.0, true)
+	if clamped:
+		# An open chevron pointing on down the aim line: the throw continues past
+		# this wall, the gauge does not.
+		for a: float in [-0.6, 0.6]:
+			var d := Vector2(cos(a), sin(a))
+			draw_line(p + d * 18.0, p + d * 30.0, c, 2.0, true)
+	else:
+		draw_arc(p, 5.0, 0.0, TAU, 20, Color(c.r, c.g, c.b, 0.6), 1.5, true)
+		for a: float in [0.0, PI * 0.5, PI, PI * 1.5]:
+			var d := Vector2(cos(a), sin(a))
+			draw_line(p + d * 16.0, p + d * 24.0, c, 2.0, true)
 
-	_draw_tag(p + Vector2(30.0, -14.0), "aim %s%.0f°  ·  %.1f m/s" % [
+	var tag := "aim %s%.0f°  ·  %.1f m/s" % [
 		"+" if controller.heading_deg >= 0.0 else "", controller.heading_deg,
-		controller.speed_mps], PT.AIM)
+		controller.speed_mps]
+	if clamped:
+		tag += "  ·  carry %.0f m, past this room" % controller.reticle_distance()
+	_draw_tag(p + Vector2(30.0, -14.0), tag, PT.AIM)
 
 
 ## Bank and launch angle, drawn at the tee where the throw actually happens.

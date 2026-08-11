@@ -23,6 +23,8 @@ const Facts := preload("res://scripts/ui/puzzle/level_facts.gd")
 const LevelDataT := preload("res://scripts/puzzle/level_data.gd")
 
 var _grid: HFlowContainer = null
+var _scroll: ScrollContainer = null
+var _more: Button = null
 var _notice: Label = null
 var _cards: Dictionary = {}
 var _current_id: String = ""
@@ -99,11 +101,11 @@ func _init() -> void:
 	legend_col.add_child(legend_body)
 
 	# --- grid ----------------------------------------------------------
-	var scroll := ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.follow_focus = true
-	col.add_child(scroll)
+	_scroll = ScrollContainer.new()
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_scroll.follow_focus = true
+	col.add_child(_scroll)
 
 	_notice = Label.new()
 	_notice.theme_type_variation = "BadLabel"
@@ -115,7 +117,58 @@ func _init() -> void:
 	_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_grid.add_theme_constant_override("h_separation", 10)
 	_grid.add_theme_constant_override("v_separation", 10)
-	scroll.add_child(_grid)
+	_scroll.add_child(_grid)
+
+	# --- the scroll cue ------------------------------------------------
+	# At 1280x720 three cards fit per row and rows 4 and 5 — levels 9 and 10 —
+	# are below the fold, with a 6 px scrollbar as the only sign they exist.
+	# Nine tenths of the level set is visible; the tenth that is not is the two
+	# hardest levels, and a player who never finds them is the failure this
+	# banner exists to prevent. It says how many are hidden, it is clickable,
+	# and it disappears once you reach the bottom.
+	_more = Button.new()
+	_more.theme_type_variation = "GhostButton"
+	_more.focus_mode = Control.FOCUS_NONE
+	_more.visible = false
+	_more.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_more.pressed.connect(_scroll_a_page)
+	col.add_child(_more)
+	_scroll.get_v_scroll_bar().value_changed.connect(func(_v: float) -> void: _update_more())
+	_scroll.resized.connect(_update_more)
+	_grid.resized.connect(_update_more)
+
+
+## How many cards are entirely below the visible area, and the banner that says
+## so. Counted from the cards' own rectangles rather than from a row estimate,
+## because `HFlowContainer` decides the row count from the canvas width and this
+## panel is played at anything from 760 px to 1920 px wide.
+func _update_more() -> void:
+	if _more == null or _scroll == null:
+		return
+	var bar := _scroll.get_v_scroll_bar()
+	var view_bottom: float = bar.value + _scroll.size.y
+	var hidden := 0
+	var first_hidden := ""
+	for id: String in _cards:
+		var card: PanelContainer = _cards[id]
+		if card.position.y + card.size.y * 0.5 > view_bottom:
+			hidden += 1
+			if first_hidden.is_empty() or card.position.y < _cards[first_hidden].position.y:
+				first_hidden = id
+	if hidden <= 0:
+		_more.visible = false
+		return
+	_more.visible = true
+	_more.text = "▼  Scroll for %d more level%s" % [hidden, "" if hidden == 1 else "s"]
+	_more.tooltip_text = "There are %d levels in all. Scroll, or click here." % _cards.size()
+
+
+func _scroll_a_page() -> void:
+	if _scroll == null:
+		return
+	var bar := _scroll.get_v_scroll_bar()
+	bar.value = minf(bar.value + _scroll.size.y * 0.8, bar.max_value - _scroll.size.y)
+	_update_more()
 
 
 # ==================================================================== fill ===
@@ -128,6 +181,9 @@ func set_levels(levels: Array, medals: Dictionary) -> void:
 		var level: LevelDataT = lv
 		_card(level, str(medals.get(level.id, "")))
 	_apply_selection()
+	# The cards have no size until the container has laid them out, so the
+	# overflow count is only meaningful a frame later.
+	call_deferred("_update_more")
 
 
 func set_notice(text: String) -> void:

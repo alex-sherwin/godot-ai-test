@@ -57,7 +57,14 @@ const RESOLUTION_SCALE := 0.75
 const MAX_TEXTURE_HEIGHT := 720
 
 ## Nothing beyond this is worth a whole render pass.
-const MAX_RENDER_DISTANCE := 110.0
+##
+## A VAR, not a const, and set by the scene that owns the renderer. 110 m is
+## right for the hand-authored test pair, whose rooms are 30 m long; the puzzle
+## levels are up to 290 m across and their overview camera sits 250 m back, at
+## which range a 36 m portal is still 8 degrees of view and reads as a dead grey
+## rectangle if it is culled. The `SLOTS` cap is what bounds the cost, so
+## raising this buys the far view at no extra worst case.
+@export var max_render_distance: float = 110.0
 ## Never let the fitted near plane collapse; 24-bit depth with no reverse-Z
 ## (Compatibility) does not tolerate a near of 1e-4.
 const MIN_NEAR := 0.05
@@ -254,7 +261,7 @@ func _select() -> Array[Portal]:
 			continue
 		var to := p.global_position - cam_pos
 		var dist := to.length()
-		if dist > MAX_RENDER_DISTANCE:
+		if dist > max_render_distance:
 			continue
 		var pts := p.corners()
 		if not _corners_in_frustum(frustum, pts):

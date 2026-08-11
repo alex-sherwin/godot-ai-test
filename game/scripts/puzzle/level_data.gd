@@ -266,6 +266,13 @@ func get_portal(pid: String) -> PortalData:
 	return _portal_index.get(pid, null)
 
 
+func get_portal_disc(disc_id: String) -> PortalDiscData:
+	for p in portal_discs:
+		if (p as PortalDiscData).id == disc_id:
+			return p
+	return null
+
+
 ## World-space flag position (y forced to the floor: it is a ground target).
 func flag_world() -> Vector3:
 	var r: RoomData = get_room(flag_room)

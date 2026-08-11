@@ -8,14 +8,29 @@ GitHub Pages as a WebGL2 build.
 A disc in flight is a spinning, bevelled wing. It generates lift, it resists the
 air, and because it is a gyroscope, the aerodynamic torque acting on it does not
 tip it over — it precesses, turning the disc sideways instead. That is where
-*turn* and *fade* actually come from. Flight Lab models that behaviour directly
-rather than replaying a canned curve: a fixed-step RK4 integrator runs at 240 Hz
-over CL/CD/CM tables that come, for four discs, from published CFD.
+*turn* and *fade* actually come from. This models that behaviour directly rather
+than replaying a canned curve: a fixed-step RK4 integrator runs at 240 Hz over
+CL/CD/CM tables that come, for four discs, from published CFD.
 
-Pick one of 14 discs, set the release, watch it fly, and read the numbers back.
-Or open the designer, edit the eight parameters the disc's cross-section is
-lathed from, and watch the mesh, the moments of inertia and the reference area
-move with them.
+**One build ships two modes.** They share the physics core, the disc roster, the
+theme and the keyboard map, so shipping them separately would mean shipping the
+40 MB engine twice. The mode is chosen on the query string before the engine
+downloads — `game/index.html` for the sandbox, `game/index.html?mode=puzzle`
+for the levels — which also makes each one a linkable URL.
+
+**Flight Lab** — the sandbox. One open 200 m range. Pick one of 14 discs, set
+the release, watch it fly, and read the numbers back. Or open the designer, edit
+the eight parameters the disc's cross-section is lathed from, and watch the
+mesh, the moments of inertia and the reference area move with them.
+
+**Portal Puzzles** — ten sealed chambers linked by portals, each room with its
+own air density, wind and gravity. Drag to aim; a ghost line predicts the throw
+*inside the launch room only* and stops at the portal, because what the far room
+does to the disc is the puzzle. You look through an aperture and see the
+destination room live, from the transformed viewpoint — the same
+`M = T_B · R_y(π) · T_A⁻¹` the simulator flies the disc through, applied to the
+camera. Three levels are entered through a portal mounted upside down, which
+turns the disc into an inverted wing and drops it out of the sky.
 
 ---
 
@@ -105,11 +120,70 @@ is trivial for any integrated GPU of the last decade. So the framerate claim is
 a reasonable expectation from the CPU cost and the draw-call count, and **not a
 measurement**. Nobody has run this on real graphics hardware.
 
+Portal Puzzles is measured in the same units and is no more expensive: **135–183
+draw calls and 10k–18k primitives** across the ten levels with one or two portals
+rendering live, against the same ~500–800 working ceiling that WebGL2's
+validation layer imposes. A portal into a *room* costs about what a room costs,
+and a room is one draw call — which is why rooms, and not the two-slot cap alone,
+are what make the budget comfortable. The same "unverified on real hardware"
+caveat applies, for the same reason.
+
 **Three roster discs are outside the current PDGA diameter band.** The Roc and
 Buzzz are published at 21.7 cm and the River at 21.5, against a 21.0–21.3 cm
 standard. Those are the real certification figures and they ship unmodified;
 the designer's checker says so in those words rather than calling an approved
 disc illegal.
+
+### What the portals do to the physics
+
+Every caveat above applies to Portal Puzzles unchanged — it is the same
+integrator, the same coefficient tables, the same four-measured-ten-derived
+roster. The portals add three claims of their own, and all three are measured.
+
+**A wall-to-wall portal does not perturb the flight, exactly.** The dynamics are
+equivariant under rotations about world-up and only those, because gravity is
+the only term that does not rotate with the state. A pure-yaw pair therefore
+reproduces the rotated baseline to **1.88e-6 m** — the float32 content of the
+authored `Transform3D`, and not improvable in the engine's own precision. (With
+the 0.1 mm re-crossing nudge that `PORTAL_CONTRACT` §5 mandates in place, it is
+~1e-4 m; the nudge is the whole of the difference, and the test zeroes it so it
+measures the transform rather than asserting around a constant.) Level design
+uses this: wall portals *always* take world-up as their up vector, so a
+sideways hop through a wall costs the throw nothing and the only thing that
+changes is which room's wind the disc is in.
+
+**A dive portal costs 40–45% of the distance and collapses the flight to
+2.5–2.9 s, whatever disc you throw.** Measured: Buzzz 96 m → 54 m and 6.92 s →
+2.65 s; Teebird 100 m → 60 m with fade reversing sign; Destroyer 67 m → 55 m.
+This is correct physics, not a bug and not a scripted effect:
+`lift_dir = j × v̂` with `j = normalise(v̂ × n)`, so flipping the disc's normal
+points lift **down**, and an inverted disc is an inverted wing. It is used
+deliberately, as a mechanic, and it is telegraphed — orange aperture, scrolling
+chevrons, a `DIVE` label, an orange badge on the level card and a panel that
+states the numbers — because nothing about the geometry tells you a hole in a
+wall will end your throw in under three seconds.
+
+**The ten intended solutions are asserted in CI, to ±0.5 m.**
+`tests/suites/test_level_replay.gd` replays every shipped level's
+`intended_solution` through the real `PuzzleSession` and checks the landing
+against the distance baked into the level file. Those distances are
+measurements taken against the shipped integrator, not estimates, so this is a
+physics regression test wearing level content as its fixture: change
+`PRECESSION_GAIN`, a coefficient table, the portal transform, the per-room
+environment split or the event locator, and it fails with the level and the
+metre error printed. Without it a level can silently become unsolvable and
+nobody finds out until a player cannot gold Level 9.
+
+**The renderer's own caveats.** There is no oblique near-plane clipping in
+Godot — no projection-matrix setter exists, `set_frustum()` cannot express one,
+and the PRs that would have added it are closed. The three-part fallback
+`PORTAL_CONTRACT` §8 specifies is what ships: a fitted perpendicular near plane,
+a world-space `discard` on the disc and its crossing ghost, and rooms built with
+single-sided inward-facing walls so a portal camera behind the exit wall does
+not see it. The residue is a thin wedge at the aperture edge, visible only with
+your eye nearly in the portal's plane. Depth is 1: a portal seen through a
+portal is drawn flat, deliberately, because the cost of recursion is geometric.
+At most two portals render at once.
 
 ---
 
@@ -124,12 +198,18 @@ disc illegal.
 │   ├── project.godot                 GL Compatibility renderer, 1280×720 base
 │   ├── export_presets.cfg            "Web" preset (committed; see below)
 │   ├── data/                         baked disc roster + coefficient tables
-│   ├── scenes/main.tscn              run/main_scene
+│   ├── scenes/boot.tscn              run/main_scene: picks the mode, hosts it
+│   ├── scenes/main.tscn              Flight Lab
+│   ├── scenes/ui/puzzle/**           Portal Puzzles
+│   ├── scenes/portal/**              portal shaders + the two screenshot probes
+│   ├── data/levels/**                the ten levels, with measured solutions
 │   ├── scripts/key_bindings.gd       THE keyboard map (see below)
-│   ├── scripts/physics/**            pure, node-free simulation core
+│   ├── scripts/physics/**            pure, node-free simulation core (+ portal_link)
 │   ├── scripts/mesh/**               parametric disc lathe
-│   ├── scripts/app/**                scene, cameras, trails, overlays
-│   ├── scripts/ui/**                 the control panel
+│   ├── scripts/app/**                Flight Lab scene, cameras, trails, overlays
+│   ├── scripts/portal/**             rooms, apertures, the SubViewport renderer
+│   ├── scripts/puzzle/**             level model, world compiler, session, ghost
+│   ├── scripts/ui/**                 the control panel (+ ui/puzzle/** for levels)
 │   └── tests/                        headless suites + the resource check
 ├── tools/
 │   ├── aero/                         offline coefficient pipeline (Python)
@@ -216,15 +296,49 @@ python3 -m tools.aero.bake --check
 # 3. Python suite — 121 tests, ~65 s.
 python3 -m pytest tools/aero -q
 
-# 4. Import once (populates the global script-class cache), then the two
+# 4. Import once (populates the global script-class cache), then the three
 #    engine-side checks.
 godot --headless --path game --import
-godot --headless --path game --script res://tests/check_resources.gd   # parse check
-godot --headless --path game --script res://tests/run_tests.gd         # 196 tests, ~6 s
+godot --headless --path game --script res://tests/check_resources.gd   # parse check, 74 scripts
+godot --headless --path game --script res://tests/run_tests.gd         # 274 tests, ~10 s
+godot --headless --path game --script res://tests/run_puzzle_tests.gd  # 331 tests, ~9 s
 
 # 5. After an export: the pack actually contains the program.
 python3 tools/ci/check_pck_contents.py web/public/game/index.pck
 ```
+
+**Authoritative counts: 274 + 331 = 605 GDScript tests, plus 121 Python.** The
+two GDScript runners are separate because they gate different things and are
+owned by different parts of the project — `run_tests.gd` is physics, geometry,
+determinism, the portal transform and the UI logic; `run_puzzle_tests.gd` is the
+puzzle runtime plus the level replay gate. Both must pass before CI exports
+anything. (Both print `physics suite: N passed`; the header is shared, the
+numbers are not.)
+
+### Looking at it
+
+Neither suite can tell you whether the thing looks right, and on this project
+every real visual defect was found by looking at a picture. Two harnesses exist
+for that, both headless, both writing PNGs, both far faster than the
+export-and-drive cycle that is the only real proof:
+
+```bash
+# The portal renderer alone: 7 camera stations over the hand-authored test pair,
+# with draw-call counts and a colour-space calibration station. ~20 s.
+xvfb-run -a godot --path game --rendering-driver opengl3 \
+    res://scenes/portal/portal_probe.tscn -- --capture=/tmp/shots
+
+# The real puzzle mode: every shipped level, any camera view, optionally
+# throwing. Instances puzzle_mode.tscn and drives its public API, so what it
+# photographs is the shipped scene.
+xvfb-run -a godot --path game --rendering-driver opengl3 \
+    res://scenes/portal/puzzle_probe.tscn -- --capture=/tmp/shots \
+    --levels=08_the_drop --views=tee,level --arm-portal-disc
+```
+
+Software GL under Xvfb is **not** evidence the exported build works — only
+Chromium against `web/public/game/` is. It is a truthful preview of framing and
+shading, which is what the loop is usually about.
 
 Other useful commands, all from `web/`:
 
@@ -291,7 +405,7 @@ and it is the historical one, which is why the other two exist.
 
 ### The runner used to hang, not fail
 
-`tests/run_tests.gd` printed `196 passed` and then spun forever. Its termination
+`tests/run_tests.gd` printed its pass count and then spun forever. Its termination
 guard was `func _iteration()`, which is Godot **3**'s `MainLoop` virtual; Godot 4
 renamed it to `_process` and never calls a method by the old name — no error, no
 warning. So the suite completed, the `quit()` never ran, and a passing run read

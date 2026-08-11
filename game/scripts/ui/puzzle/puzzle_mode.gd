@@ -66,6 +66,8 @@ var _view: String = "tee"
 var _flying: bool = false
 var _throw_index: int = -1
 var _last_ghost_kind: String = ""
+## One stage diagnostic per level; see `_report_stage`.
+var _stage_reported: bool = false
 
 
 func _ready() -> void:
@@ -146,6 +148,7 @@ func load_level_index(i: int) -> void:
 	_level = level
 	_flying = false
 	_throw_index = -1
+	_stage_reported = false
 
 	session.start(level, _discs)
 	for e in session.start_errors:
@@ -167,6 +170,15 @@ func load_level_index(i: int) -> void:
 	# it swings the whole frame sideways. Measured on Level 1: flag world
 	# (130, 0, 16) against a tee at the origin.
 	aim.set_tee(level.tee_world(), Vector3(0, 0, -1))
+	# The reticle is drawn on the LAUNCH room's floor and nowhere else. Without
+	# this it is a marker on an infinite ground plane, and at full power on
+	# Level 1 it sits 115 m past the tee room's far wall — in the gap between
+	# rooms, pointing at nothing.
+	var tee_room: PuzzleLevelData.RoomData = level.get_room(level.tee_room)
+	if tee_room != null:
+		aim.set_bounds(tee_room.world_min(), tee_room.world_max())
+	else:
+		aim.clear_bounds()
 
 	var ids := level.allowed_disc_ids()
 	aim.apply_category(_category_of(ids[0] if not ids.is_empty() else ""), true)
@@ -259,6 +271,12 @@ func _physics_process(delta: float) -> void:
 	if session.advance(delta * PLAYBACK_RATE):
 		var state := session.flight_state()
 		preview.show_disc(state.position)
+		# Two hints to the portal renderer, both about the disc: which portals
+		# are worth a render pass (the two slots go to the ones it is bearing
+		# down on, not merely the biggest on screen), and where to put the
+		# crossing ghost so the disc does not pop as it goes through.
+		preview.stage.set_focus(state.position)
+		preview.stage.track_disc(Transform3D(Basis.IDENTITY, state.position), true)
 		if _view == "follow":
 			preview.view_follow(state.position, aim.reticle_position() - aim.tee_position)
 		return
@@ -266,6 +284,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	_report_stage()
 	if _flying or _level == null:
 		return
 	# The predictor decides when to integrate; this only gives it a clock.
@@ -273,10 +292,43 @@ func _process(delta: float) -> void:
 		_push_ghost()
 
 
+## One line, once per level, as soon as the portal renderer has warmed and is
+## actually drawing something. It is the puzzle-mode counterpart of
+## `[FlightApp] ready.` and it exists for the same reason: a headless browser
+## driving the shipped build has no DOM inside the canvas, so the console is the
+## only place a claim about the 3D scene can be checked from outside the engine.
+##
+## `portal_rect` is the payload that matters. godot#86258 reports SubViewport
+## textures rendering BLACK in *exported* builds — fine in the editor, broken in
+## the browser, which is exactly the failure mode that shipped six green deploys
+## of this project with no physics in them. Printing the aperture's screen
+## rectangle lets the driver sample those pixels and assert that the portal
+## shows a room rather than a black hole.
+func _report_stage() -> void:
+	if _stage_reported or _level == null or preview == null or preview.stage == null:
+		return
+	var renderer := preview.stage.renderer
+	if renderer == null or not renderer.is_warm() or renderer.active_portal_count() <= 0:
+		return
+	var rect: Dictionary = preview.stage.live_portal_rect()
+	if rect.is_empty():
+		return
+	_stage_reported = true
+	var s: Dictionary = preview.stage.stats()
+	print("[PuzzleMode] stage level=%s rooms=%d portals=%d live=%d draw_calls=%d prims=%d problems=%d" % [
+		_level.id, int(s["rooms"]), int(s["portals"]), int(s["active"]),
+		int(s["draw_calls"]), int(s["primitives"]), int(s["problems"])])
+	print("[PuzzleMode] portal_rect id=%s kind=%d x=%d y=%d w=%d h=%d" % [
+		str(rect["id"]), int(rect["kind"]), int(rect["x"]), int(rect["y"]),
+		int(rect["w"]), int(rect["h"])])
+
+
 func _land() -> void:
 	_flying = false
 	ui.overlay.in_flight = false
 	preview.hide_disc()
+	preview.stage.clear_focus()
+	preview.stage.track_disc(Transform3D.IDENTITY, false)
 
 	var record: PuzzleSession.ThrowRecord = session.throws[_throw_index] \
 		if _throw_index >= 0 and _throw_index < session.throws.size() else null
@@ -416,6 +468,7 @@ func _push_ghost() -> void:
 	overlay.ghost_end_position = ghost.end_position
 	overlay.ghost_end_dive = false
 	overlay.ghost_end_label = ""
+	overlay.ghost_end_portalable = false
 	match ghost.end_kind:
 		"portal":
 			var dive := Facts.portal_dives(_level, _level.get_portal(ghost.end_id))
@@ -423,18 +476,44 @@ func _push_ghost() -> void:
 			overlay.ghost_end_label = "DIVE PORTAL — 40-45% shorter beyond this" if dive \
 				else "PORTAL — the prediction stops here"
 		"wall":
-			overlay.ghost_end_label = "WALL — this line hits stone"
+			# A portalable panel is not "stone". Saying so is the difference
+			# between a player who knows their one portal disc is aimed at a
+			# legal surface and a player who finds out by spending it.
+			overlay.ghost_end_portalable = ghost.end_portalable
+			if ghost.end_portalable:
+				overlay.ghost_end_label = "PORTALABLE PANEL — a portal disc opens here" \
+					if _portal_disc_armed() else "PORTALABLE PANEL — arm a portal disc to use it"
+			else:
+				overlay.ghost_end_label = "WALL — this line hits stone"
 		"barrier":
 			overlay.ghost_end_label = "BARRIER — still locked"
 		"truncated":
 			overlay.ghost_end_label = "preview ends"
 		"failed":
 			overlay.ghost_end_label = "no prediction"
+	_push_portal_prediction()
 	if ghost.end_kind != _last_ghost_kind:
 		_last_ghost_kind = ghost.end_kind
-		print("[PuzzleMode] ghost %s at %s (%d pts, %.1f ms) dive=%s" % [
+		print("[PuzzleMode] ghost %s at %s (%d pts, %.1f ms) dive=%s portalable=%s" % [
 			ghost.end_kind, str(ghost.end_position), ghost.trajectory.size(),
-			ghost.compute_ms, str(overlay.ghost_end_dive)])
+			ghost.compute_ms, str(overlay.ghost_end_dive), str(ghost.end_portalable)])
+
+
+func _portal_disc_armed() -> bool:
+	return ui != null and not ui.current_portal_disc_id().is_empty()
+
+
+## Show the rectangle the armed portal disc would actually open, at the current
+## aim. Only when a portal disc is armed AND the line ends on a portalable
+## panel — a rectangle drawn for a throw that cannot place a portal is worse
+## than none, because it promises something the throw will not do.
+func _push_portal_prediction() -> void:
+	var show: bool = _portal_disc_armed() and ghost.end_kind == "wall" \
+		and ghost.end_portalable and not ghost.end_id.is_empty()
+	preview.predicted_portal_surface = ghost.end_id if show else ""
+	preview.predicted_portal_disc = ui.current_portal_disc_id() if show else ""
+	preview.predicted_portal_impact = ghost.end_position
+	preview.refresh_prediction()
 
 
 # ==================================================================== state ===

@@ -162,9 +162,21 @@ func _make_surface_material(style: Dictionary, is_live: bool) -> ShaderMaterial:
 ## The frame is the second half of the identity signal: a dive portal's frame is
 ## deeper and hazard-coloured, so the kind is legible from behind and from a
 ## grazing angle where the aperture itself is a sliver.
+## Lift the frame this far along +Z, so its front face is IN FRONT of the wall
+## rather than coplanar with it. The aperture is a real hole, but the frame bars
+## straddle its edge and overlap the wall around it, and Compatibility's 24-bit
+## depth buffer with no reverse-Z z-fights on coplanar geometry from about 60 m
+## out. 1 cm also reads as a raised surround, which is what a frame should be.
+const FRAME_LIFT := 0.01
+
+
 func _build_frame(style: Dictionary) -> void:
 	var depth: float = style["frame_depth"]
-	var bar := 0.10
+	# The bar scales with the aperture. A fixed 0.10 m is right for the 2.6 m
+	# test pair and is a hairline on one of the puzzle levels' 36 m portals,
+	# where the frame is carrying the kind (normal / DIVE / disc-placed) at
+	# 130 m. Small portals are unaffected: the clamp floor IS the old constant.
+	var bar: float = clampf(minf(width, height) * 0.03, 0.10, 0.9)
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = style["frame"]
 	mat.emission_enabled = true
@@ -179,10 +191,11 @@ func _build_frame(style: Dictionary) -> void:
 	var hh := height * 0.5 + bar * 0.5
 	# Four bars, laid out in the portal's own XY plane and pushed back so the
 	# frame sits *in* the wall rather than floating in front of the aperture.
-	_add_box(st, Vector3(0.0, hh, -depth * 0.5), Vector3(hw * 2.0 + bar, bar, depth))
-	_add_box(st, Vector3(0.0, -hh, -depth * 0.5), Vector3(hw * 2.0 + bar, bar, depth))
-	_add_box(st, Vector3(-hw, 0.0, -depth * 0.5), Vector3(bar, hh * 2.0, depth))
-	_add_box(st, Vector3(hw, 0.0, -depth * 0.5), Vector3(bar, hh * 2.0, depth))
+	var z := -depth * 0.5 + FRAME_LIFT
+	_add_box(st, Vector3(0.0, hh, z), Vector3(hw * 2.0 + bar, bar, depth))
+	_add_box(st, Vector3(0.0, -hh, z), Vector3(hw * 2.0 + bar, bar, depth))
+	_add_box(st, Vector3(-hw, 0.0, z), Vector3(bar, hh * 2.0, depth))
+	_add_box(st, Vector3(hw, 0.0, z), Vector3(bar, hh * 2.0, depth))
 	st.generate_normals()
 
 	_frame = MeshInstance3D.new()
@@ -198,7 +211,9 @@ func _build_frame(style: Dictionary) -> void:
 		var l := Label3D.new()
 		l.text = label
 		l.font_size = 64
-		l.pixel_size = 0.34 / 64.0
+		# Scales with the aperture for the same reason the bar does: 0.34 m of
+		# text above a 36 m portal seen from 130 m is not a warning.
+		l.pixel_size = maxf(0.34, minf(width, height) * 0.12) / 64.0
 		l.position = Vector3(0.0, hh + bar * 1.4, 0.02)
 		l.modulate = style["frame"]
 		l.outline_modulate = Color(0.05, 0.02, 0.0, 0.9)
@@ -249,6 +264,27 @@ func link(other: Portal) -> void:
 	to_peer = lk.transform
 	if not lk.valid or lk.repaired:
 		link_error = "%s -> %s: %s" % [name, other.name, ", ".join(lk.warnings)]
+		push_warning("[Portal] " + link_error)
+
+
+## Link using a `PortalLink` somebody else already built and validated — the one
+## the simulator is flying against. `link()` above builds its own, which is
+## right for a scene that authors its portals in code; puzzle mode's portals are
+## compiled by `PuzzleWorld` and handed to `DiscFlightSim.configure_rooms()`, so
+## adopting that object rather than recomputing an equal one is what makes "the
+## picture and the flight cannot disagree" structural instead of a convention.
+## A link the determinant guard repaired arrives here already repaired.
+func adopt_link(other: Portal, lk: RefCounted) -> void:
+	if other == null or lk == null:
+		unlink()
+		return
+	peer = other
+	link_data = lk
+	to_peer = lk.get("transform")
+	link_error = ""
+	if not bool(lk.get("valid")) or bool(lk.get("repaired")):
+		link_error = "%s -> %s: %s" % [name, other.name,
+			", ".join(lk.get("warnings") as PackedStringArray)]
 		push_warning("[Portal] " + link_error)
 
 

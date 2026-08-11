@@ -66,6 +66,12 @@ var trajectory: PackedVector3Array = PackedVector3Array()
 var end_kind: String = ""
 ## Portal / surface / barrier id the ghost ended against, "" for the floor.
 var end_id: String = ""
+## True when `end_kind == "wall"` and that wall is a PORTALABLE panel. The
+## oracle distinguishes the two and `end_kind` deliberately does not — a panel
+## stops a scoring disc exactly as stone does — but a player holding a portal
+## disc needs to know which one they are looking at BEFORE they throw it, since
+## a portal disc that misses is spent.
+var end_portalable: bool = false
 var end_position: Vector3 = Vector3.ZERO
 ## Ground-plane distance from the tee to where the ghost ends. For a ghost that
 ## ends at a portal this is the distance to the portal, NOT to any flag.
@@ -121,6 +127,7 @@ func reset() -> void:
 	trajectory = PackedVector3Array()
 	end_kind = ""
 	end_id = ""
+	end_portalable = false
 	end_distance_m = 0.0
 	flight_time_s = 0.0
 	predictions = 0
@@ -214,6 +221,7 @@ func _predict() -> void:
 	flight_time_s = res.flight_time_s
 	end_kind = "floor"
 	end_id = ""
+	end_portalable = false
 	if res.failed:
 		end_kind = "failed"
 	elif not res.impact.is_empty():
@@ -222,6 +230,7 @@ func _predict() -> void:
 		if end_kind == "surface":
 			end_kind = "wall"
 		end_id = String(col.get("id", ""))
+		end_portalable = bool(col.get("portalable", false))
 
 	if preview_s > 0.0 and flight_time_s > preview_s:
 		_truncate_to(preview_s)
@@ -246,4 +255,5 @@ func _truncate_to(t: float) -> void:
 	trajectory = trajectory.slice(0, keep)
 	end_kind = "truncated"
 	end_id = ""
+	end_portalable = false
 	flight_time_s = t

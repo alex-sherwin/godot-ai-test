@@ -38,6 +38,11 @@ var armed_buttons: Dictionary = {}
 var build_errors: PackedStringArray = PackedStringArray()
 
 var _by_id: Dictionary = {}
+## "<from id> <to id>" -> the PortalLink emitted for that directed hop.
+## Rendering looks a link up here so a portal camera is driven by the very
+## object the simulator flies against, rather than by an equal one built a
+## second time (PORTAL_CONTRACT §3: there is one implementation of M).
+var _link_by_pair: Dictionary = {}
 
 
 func _init(lv: LevelDataT = null) -> void:
@@ -94,14 +99,7 @@ func arm_button(button_id: String) -> PackedStringArray:
 ## lower edge is y = 2 and half the portal height is 6.
 func place_portal(spec: LevelDataT.PortalDiscData, surface_id: String,
 		impact_local: Vector3) -> LevelDataT.PortalData:
-	var sd: LevelDataT.SurfaceData = null
-	for r in level.rooms:
-		for s in (r as LevelDataT.RoomData).surfaces:
-			if (s as LevelDataT.SurfaceData).id == surface_id:
-				sd = s
-				break
-		if sd != null:
-			break
+	var sd: LevelDataT.SurfaceData = surface_by_id(surface_id)
 	if sd == null or not sd.portalable:
 		return null
 
@@ -116,22 +114,7 @@ func place_portal(spec: LevelDataT.PortalDiscData, surface_id: String,
 	p.inverting = spec.inverting
 	p.starts_open = true
 	p.placed_by = spec.id
-
-	# Half-extents per axis: `up` is vertical, so the height goes on y and the
-	# width on whichever horizontal axis is not the plane's.
-	var c: Vector3 = impact_local
-	for i in 3:
-		if i == sd.axis:
-			continue
-		var half: float = (p.height_m if i == 1 else p.width_m) * 0.5
-		var lo: float = sd.rect_min[i] + half
-		var hi: float = sd.rect_max[i] - half
-		# A panel narrower than the portal centres it rather than inverting the
-		# clamp — `clampf(v, lo, hi)` with lo > hi returns hi and would jam the
-		# portal against one edge.
-		c[i] = clampf(c[i], lo, hi) if lo <= hi else (sd.rect_min[i] + sd.rect_max[i]) * 0.5
-	c[sd.axis] = sd.value
-	p.center = c
+	p.center = clamp_portal_center(sd, spec, impact_local)
 
 	# Replace rather than append if this portal disc has already been used, so a
 	# level that grants `count > 1` moves its portal instead of growing an army.
@@ -143,6 +126,46 @@ func place_portal(spec: LevelDataT.PortalDiscData, surface_id: String,
 	portals.append(p)
 	_rebuild()
 	return p
+
+
+## Where a portal disc striking `sd` at `impact_local` actually opens its portal:
+## the impact point, clamped so the whole rectangle fits inside the panel.
+##
+## Extracted from `place_portal` so the UI can draw the SAME rectangle before the
+## throw. A missed portal disc is spent — that is Level 7's whole tension — so
+## the player is owed a prediction, and a prediction computed by a second copy of
+## this clamp would eventually stop matching the placement it predicts.
+static func clamp_portal_center(sd: LevelDataT.SurfaceData,
+		spec: LevelDataT.PortalDiscData, impact_local: Vector3) -> Vector3:
+	# Half-extents per axis: `up` is vertical, so the height goes on y and the
+	# width on whichever horizontal axis is not the plane's.
+	var c: Vector3 = impact_local
+	for i in 3:
+		if i == sd.axis:
+			continue
+		var half: float = (spec.height_m if i == 1 else spec.width_m) * 0.5
+		var lo: float = sd.rect_min[i] + half
+		var hi: float = sd.rect_max[i] - half
+		# A panel narrower than the portal centres it rather than inverting the
+		# clamp — `clampf(v, lo, hi)` with lo > hi returns hi and would jam the
+		# portal against one edge.
+		c[i] = clampf(c[i], lo, hi) if lo <= hi else (sd.rect_min[i] + sd.rect_max[i]) * 0.5
+	c[sd.axis] = sd.value
+	return c
+
+
+## The `PortalLink` for one DIRECTED hop, or null. See `_link_by_pair`.
+func link_for(from_id: String, to_id: String) -> PortalLinkT:
+	return _link_by_pair.get("%s %s" % [from_id, to_id], null) as PortalLinkT
+
+
+## The panel with this id, or null.
+func surface_by_id(surface_id: String) -> LevelDataT.SurfaceData:
+	for r in level.rooms:
+		for s in (r as LevelDataT.RoomData).surfaces:
+			if (s as LevelDataT.SurfaceData).id == surface_id:
+				return s
+	return null
 
 
 ## Is `pid` open right now? A portal with `opened_by` stays shut until all of
@@ -171,6 +194,7 @@ func _rebuild() -> void:
 		environments.append(_environment(r))
 
 	links.clear()
+	_link_by_pair.clear()
 	var holes: Array = []
 	var emitted := {}
 	for p in portals:
@@ -190,8 +214,12 @@ func _rebuild() -> void:
 			continue
 		emitted[pd.id] = true
 		emitted[other.id] = true
-		links.append(_link(pd, other))
-		links.append(_link(other, pd))
+		var forward := _link(pd, other)
+		var back := _link(other, pd)
+		links.append(forward)
+		links.append(back)
+		_link_by_pair["%s %s" % [pd.id, other.id]] = forward
+		_link_by_pair["%s %s" % [other.id, pd.id]] = back
 
 	oracle.level = level
 	oracle.holes = holes

@@ -85,6 +85,18 @@ var tee_position: Vector3 = Vector3.ZERO
 var tee_forward: Vector3 = Vector3(0, 0, -1)
 var tee_right: Vector3 = Vector3(1, 0, 0)
 
+## World-space floor rectangle of the LAUNCH room. The reticle is a power gauge
+## drawn on the ground, and the ground it was drawn on was an infinite plane —
+## so at high power it floated in the void outside every room, and on a level
+## whose rooms are offset by `world_origin` (Level 1's second room is 130 m to
+## the RIGHT) it pointed at nothing at all. Bounded, it slides to the wall and
+## stops, and `reticle_clamped()` says so. The NUMBERS never clamp: the carry a
+## throw is set up for is a property of the throw, not of the room it starts in,
+## and the disc goes through the portal in that wall anyway.
+var bounds_min: Vector3 = Vector3.ZERO
+var bounds_max: Vector3 = Vector3.ZERO
+var has_bounds: bool = false
+
 var drag: int = Drag.NONE
 
 var _category: String = ""
@@ -144,9 +156,56 @@ func reticle_distance() -> float:
 	return lerpf(CARRY_MIN, CARRY_MAX, power())
 
 
+## The unbounded reticle: tee + aim direction * carry. This is the AIM, and it
+## is what the camera framing and the throw are measured from.
 func reticle_position() -> Vector3:
 	var dir := tee_forward.rotated(Vector3.UP, -deg_to_rad(heading_deg))
 	return tee_position + dir * reticle_distance()
+
+
+## Set the floor rectangle the reticle may be drawn on. Inset slightly so the
+## marker does not sit exactly in a wall, where half of it is behind geometry.
+func set_bounds(world_min: Vector3, world_max: Vector3) -> void:
+	var inset := 1.5
+	bounds_min = Vector3(minf(world_min.x + inset, world_max.x), world_min.y,
+		minf(world_min.z + inset, world_max.z))
+	bounds_max = Vector3(maxf(world_max.x - inset, world_min.x), world_max.y,
+		maxf(world_max.z - inset, world_min.z))
+	has_bounds = bounds_max.x > bounds_min.x and bounds_max.z > bounds_min.z
+	changed.emit()
+
+
+func clear_bounds() -> void:
+	has_bounds = false
+	changed.emit()
+
+
+## Where the reticle is actually DRAWN: the aim point, pulled back along the aim
+## line to the last point still inside the launch room. Pulling it back along the
+## line rather than clamping each axis keeps the marker on the aim line, so it
+## still reads as "this direction" and not as an arbitrary corner.
+func reticle_draw_position() -> Vector3:
+	var target := reticle_position()
+	if not has_bounds:
+		return target
+	var from := tee_position
+	var d := target - from
+	d.y = 0.0
+	var t := 1.0
+	for i: int in [0, 2]:
+		if absf(d[i]) < 1.0e-6:
+			continue
+		var limit: float = bounds_max[i] if d[i] > 0.0 else bounds_min[i]
+		t = minf(t, (limit - from[i]) / d[i])
+	return from + (target - from) * clampf(t, 0.0, 1.0)
+
+
+## True when the aim carries past the launch room and the drawn reticle had to
+## be pulled back. Not an error — the disc goes through the portal in that wall
+## — but the marker must not read as "your disc lands in the void here".
+func reticle_clamped() -> bool:
+	return has_bounds \
+		and reticle_draw_position().distance_squared_to(reticle_position()) > 0.25
 
 
 # ================================================================== setters ==

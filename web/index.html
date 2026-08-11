@@ -59,10 +59,13 @@
             <span class="mode-kicker">Ten levels</span>
             <span class="mode-title">Portal Puzzles</span>
             <span class="mode-body">
-              Sealed chambers linked by portals, each room with its own air
-              density, wind and gravity. Drag to aim; a ghost line predicts the
-              throw inside the launch room and stops at the portal, because what
-              the far room does to a disc is the puzzle. One chamber is entered
+              Ten sealed chambers linked by portals, each room with its own
+              air density, wind and gravity. Look through an aperture and you
+              see the destination room live, from the transformed viewpoint
+              &mdash; the same transform the simulator flies the disc through,
+              applied to a camera. Drag to aim; a ghost line predicts the throw
+              inside the launch room and stops at the portal, because what the
+              far room does to a disc is the puzzle. Three chambers are entered
               through a portal mounted upside&#8209;down, which turns the disc
               into an inverted wing and drops it out of the sky.
             </span>
@@ -249,9 +252,44 @@
                 llvmpipe gives 5&ndash;7&nbsp;fps and SwiftShader 1&ndash;2, both
                 pure CPU rasterisation, and neither says anything about real
                 hardware. The simulation costs ~0.048&nbsp;ms of CPU per frame
-                and the scene draws ~190 calls, which is trivial for any
-                integrated GPU of the last decade &mdash; so smooth playback is
-                a reasonable expectation and <strong>not a measurement</strong>.
+                and the scene draws ~190 calls in Flight Lab and 135&ndash;183
+                in Portal Puzzles with portals rendering, which is trivial for
+                any integrated GPU of the last decade &mdash; so smooth playback
+                is a reasonable expectation and
+                <strong>not a measurement</strong>.
+              </p>
+            </li>
+            <li>
+              <h3>A wall portal is free. A dive portal is not, and that is real</h3>
+              <p>
+                The equations are equivariant under rotations about world&#8209;up
+                and only those, because gravity is the only term that does not
+                rotate with the disc. So a wall&#8209;to&#8209;wall portal pair
+                &mdash; pure yaw &mdash; reproduces the un&#8209;portalled flight
+                <strong>exactly</strong>, measured to 1.9&times;10<sup>&minus;6</sup>&nbsp;m,
+                which is the float32 precision of the transform itself. Nothing
+                changes but which room's wind you are in. Turn the portal upside
+                down and lift points <em>down</em>: an inverted disc is an
+                inverted wing. Measured across the roster, a dive portal costs
+                <strong>40&ndash;45% of the distance</strong> and collapses the
+                flight to <strong>2.5&ndash;2.9&nbsp;s</strong> whatever you
+                throw. That is correct physics used deliberately as a mechanic,
+                not a scripted effect &mdash; and it is why those levels are
+                signposted in orange everywhere they appear.
+              </p>
+            </li>
+            <li>
+              <h3>The ten solutions are asserted in CI</h3>
+              <p>
+                Every level ships with the throw that solves it and the distance
+                that throw actually lands from the flag &mdash; a measurement
+                taken against the shipped integrator, not an estimate. CI replays
+                all ten through the real game logic and fails the build if any
+                lands more than <strong>0.5&nbsp;m</strong> from its recorded
+                result. It is a physics regression test wearing level content as
+                its fixture: change a coefficient, the precession gain or the
+                portal transform, and it says which level broke and by how many
+                metres. Without it a level could quietly become unsolvable.
               </p>
             </li>
           </ol>
