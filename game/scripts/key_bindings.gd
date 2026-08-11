@@ -31,6 +31,13 @@ extends RefCounted
 ##   STANDALONE  FlightApp binds these ONLY when there is no control panel (the
 ##               built-in debug HUD). They may overlap PANEL freely: the two
 ##               sets are never live at the same time.
+##   PUZZLE      PuzzleUi owns these in Portal Puzzles mode. The two modes are
+##               separate scenes chosen at boot and never coexist, so overlap
+##               with PANEL and WORLD is expected — the same reasoning as
+##               STANDALONE. Where a key appears in both, it means the same
+##               thing on both sides (Space throws, R starts over, C cycles the
+##               camera), because a player moving between the two modes should
+##               not have to relearn the keyboard.
 ##
 ## To add a shortcut: put it in exactly one table here, then handle it in that
 ## table's owner. Nowhere else.
@@ -82,6 +89,28 @@ const STANDALONE := {
 	KEY_BRACKETRIGHT: "next disc",
 	KEY_R: "reset to the tee",
 	KEY_W: "wind",
+}
+
+
+## Owned by `scripts/ui/puzzle/puzzle_ui.gd`, live ONLY in Portal Puzzles mode.
+##
+## The digit row is deliberately absent. In the sandbox 1-5 are the panel tabs,
+## and a player who has learned that should not find that 1 loads a level here.
+## Level choice is a screen (L), not a chord.
+const PUZZLE := {
+	KEY_SPACE: "throw",
+	KEY_ENTER: "throw",
+	KEY_KP_ENTER: "throw",
+	KEY_R: "retry",
+	KEY_A: "exact parameters",
+	KEY_C: "camera",
+	KEY_G: "ghost",
+	KEY_K: "hint",
+	KEY_L: "levels",
+	KEY_N: "next level",
+	KEY_BRACKETLEFT: "previous disc",
+	KEY_BRACKETRIGHT: "next disc",
+	KEY_ESCAPE: "back",
 }
 
 

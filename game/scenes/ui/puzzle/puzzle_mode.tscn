@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+; Portal Puzzles. Deliberately thin, like `scenes/main.tscn`: PuzzleModeApp
+; builds the level preview, the UI and the session in code, because all three
+; are constructed from the level file and none of them is worth hand-maintaining
+; as scene data.
+
+[ext_resource type="Script" path="res://scripts/ui/puzzle/puzzle_mode.gd" id="1_puzzle"]
+
+[node name="PuzzleMode" type="Node3D"]
+script = ExtResource("1_puzzle")

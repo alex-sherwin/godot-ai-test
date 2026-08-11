@@ -40,6 +40,7 @@ const SuiteCrossval := preload("res://tests/suites/test_crossval.gd")
 const SuiteGeometryMirror := preload("res://tests/suites/test_geometry_mirror.gd")
 const SuiteKeyBindings := preload("res://tests/suites/test_key_bindings.gd")
 const SuitePortal := preload("res://tests/suites/test_portal.gd")
+const SuitePuzzleUi := preload("res://tests/suites/test_puzzle_ui.gd")
 const Bench := preload("res://tests/bench.gd")
 
 var _finished: bool = false
@@ -74,6 +75,7 @@ func _initialize() -> void:
 	SuiteGeometryMirror.new().run(t, lib)
 	SuiteKeyBindings.new().run(t, lib)
 	SuitePortal.new().run(t, lib)
+	SuitePuzzleUi.new().run(t, lib)
 	Bench.new().run(t, lib)
 
 	_exit_code = t.report()

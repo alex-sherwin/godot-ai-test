@@ -15,6 +15,7 @@ const Bindings := preload("res://scripts/key_bindings.gd")
 
 const PANEL_SRC := "res://scripts/ui/control_panel.gd"
 const APP_SRC := "res://scripts/app/flight_app.gd"
+const PUZZLE_SRC := "res://scripts/ui/puzzle/puzzle_ui.gd"
 
 
 func run(t: Object, _lib: Object) -> void:
@@ -33,17 +34,51 @@ func run(t: Object, _lib: Object) -> void:
 	t.check("a key in both FlightApp tables does the same thing in each",
 		shared.is_empty(), "differ: %s" % str(shared))
 
+	# PUZZLE is Portal Puzzles' table. The two modes are separate scenes chosen
+	# at boot and never coexist, so overlap with PANEL is fine — but a key that
+	# appears in both must MEAN the same thing, or a player switching modes has
+	# to relearn the keyboard. That is a real constraint, so it is asserted.
+	var reused: Array = []
+	for code: int in Bindings.PUZZLE:
+		if Bindings.PANEL.has(code) and str(Bindings.PUZZLE[code]) != str(Bindings.PANEL[code]):
+			# "reset" in the sandbox and "retry" in puzzle mode are the same
+			# gesture with a mode-appropriate word, so synonyms are declared
+			# rather than assumed.
+			if not _synonyms(str(Bindings.PANEL[code]), str(Bindings.PUZZLE[code])):
+				reused.append("%s: panel=%s puzzle=%s"
+					% [Bindings.label(code), Bindings.PANEL[code], Bindings.PUZZLE[code]])
+	t.check("a key shared with the sandbox panel means the same thing in puzzle mode",
+		reused.is_empty(), "differ: %s" % str(reused))
+
 	_check_handler(t, "ControlPanel", PANEL_SRC, _tokens(Bindings.PANEL))
 	_check_handler(t, "FlightApp", APP_SRC,
 		_tokens(Bindings.WORLD) + _tokens(Bindings.STANDALONE))
+	_check_handler(t, "PuzzleUi", PUZZLE_SRC, _tokens(Bindings.PUZZLE))
 
 	var total := {}
-	for table: Dictionary in [Bindings.PANEL, Bindings.WORLD, Bindings.STANDALONE]:
+	for table: Dictionary in [Bindings.PANEL, Bindings.WORLD, Bindings.STANDALONE, Bindings.PUZZLE]:
 		for code: int in table:
 			total[code] = true
 	t.check("every declared key resolves to a real keycode", true,
 		"%d distinct keys across 3 tables" % total.size())
 	t.end_suite()
+
+
+## Labels that describe the same action in two modes' vocabulary. Listed, not
+## inferred: "reset" and "retry" being the same idea is a judgement, and a
+## judgement belongs in the source where it can be argued with.
+const SYNONYMS := [
+	["reset", "retry"],
+	["panel", "exact parameters"],
+	["close overlay", "back"],
+]
+
+
+static func _synonyms(a: String, b: String) -> bool:
+	for pair: Array in SYNONYMS:
+		if (a == pair[0] and b == pair[1]) or (a == pair[1] and b == pair[0]):
+			return true
+	return false
 
 
 func _tokens(table: Dictionary) -> Array:

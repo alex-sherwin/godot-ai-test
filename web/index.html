@@ -7,7 +7,7 @@
     <title>Disc Golf Flight Lab</title>
     <meta
       name="description"
-      content="An interactive disc golf flight simulator built on published CFD data. Pick a disc, set the release, and watch a 240 Hz aerodynamic model fly it down a measured range — or design your own disc and see the physics follow the shape."
+      content="An interactive disc golf flight simulator built on published CFD data. Two modes: Flight Lab, an open range where you tune every release parameter, and Portal Puzzles, ten sealed chambers whose air, gravity and wind are all different."
     />
     <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
     <link rel="stylesheet" href="/src/style.css" />
@@ -20,26 +20,59 @@
         <p class="lede">
           A disc in flight is a spinning, bevelled wing. It generates lift, it
           resists the air, and because it is a gyroscope, the torque from that
-          airflow does not tip it over &mdash; it turns it sideways. Flight Lab
+          airflow does not tip it over &mdash; it turns it sideways. This
           simulates that behaviour directly: a fixed&#8209;step RK4 integrator
           runs at 240&nbsp;Hz over lift, drag and pitching&#8209;moment tables
-          that come, for four discs, from published CFD. Pick a disc, set the
-          release, and watch the trajectory carve its way down a measured
-          200&nbsp;m range &mdash; or open the designer and edit the eight
-          parameters the disc itself is lathed from.
+          that come, for four discs, from published CFD. The same model drives
+          both modes below.
         </p>
 
-        <div class="cta">
-          <!-- href is rewritten by Vite's %BASE_URL% so this works under
-               /godot-ai-test/ on Pages and at / during `vite dev`. main.js
-               re-derives it from import.meta.env.BASE_URL as a belt-and-braces
-               check. Full-page navigation, not an iframe: Godot's canvas resize
-               policy assumes it owns the window, and an iframe would add focus,
-               keyboard and pointer-lock friction for no benefit. -->
-          <a class="btn btn-primary" id="launch" href="%BASE_URL%game/index.html">
-            <span class="btn-label">Launch simulator</span>
-            <span class="btn-sub">~40&nbsp;MB first load</span>
+        <!-- Two entries into ONE Godot build. The mode is chosen here, on the
+             query string, because Godot's web shell does not forward it into
+             OS.get_cmdline_args() and reading location.search in
+             scripts/ui/puzzle/mode_boot.gd is the only route. Making the choice
+             before the engine downloads also means the browser back button
+             behaves and each mode is a linkable URL.
+
+             %BASE_URL% is rewritten by Vite so these work under
+             /godot-ai-test/ on Pages and at / during `vite dev`; main.js
+             re-derives both hrefs from import.meta.env.BASE_URL as a
+             belt-and-braces check. Full-page navigation, not an iframe: Godot's
+             canvas resize policy assumes it owns the window. -->
+        <div class="modes">
+          <a class="mode" id="launch-lab" href="%BASE_URL%game/index.html">
+            <span class="mode-kicker">Sandbox</span>
+            <span class="mode-title">Flight Lab</span>
+            <span class="mode-body">
+              One open 200&nbsp;m range, fourteen discs and every release
+              parameter on a slider: speed, spin, nose, hyzer, launch angle,
+              aim. Read the live telemetry as it flies, or open the designer and
+              edit the eight numbers the disc itself is lathed from and watch
+              the aerodynamics follow the shape.
+            </span>
+            <span class="mode-go"
+              >Launch <span class="mode-sub">~40&nbsp;MB first load</span></span
+            >
           </a>
+
+          <a class="mode" id="launch-puzzle" href="%BASE_URL%game/index.html?mode=puzzle">
+            <span class="mode-kicker">Ten levels</span>
+            <span class="mode-title">Portal Puzzles</span>
+            <span class="mode-body">
+              Sealed chambers linked by portals, each room with its own air
+              density, wind and gravity. Drag to aim; a ghost line predicts the
+              throw inside the launch room and stops at the portal, because what
+              the far room does to a disc is the puzzle. One chamber is entered
+              through a portal mounted upside&#8209;down, which turns the disc
+              into an inverted wing and drops it out of the sky.
+            </span>
+            <span class="mode-go"
+              >Launch <span class="mode-sub">same build, same physics</span></span
+            >
+          </a>
+        </div>
+
+        <div class="cta">
           <a
             class="btn btn-ghost"
             href="https://github.com/alex-sherwin/godot-ai-test"
@@ -108,6 +141,7 @@
           <h2 id="controls-title">Controls</h2>
           <!-- Keep in sync with game/scripts/key_bindings.gd, which is the one
                place key ownership is declared. -->
+          <h3 class="controls-head">Flight Lab</h3>
           <dl class="controls">
             <div><dt>Space</dt><dd>Throw</dd></div>
             <div><dt>R</dt><dd>Reset the release parameters</dd></div>
@@ -120,10 +154,26 @@
             <div><dt>Mouse drag</dt><dd>Orbit the camera (Free view)</dd></div>
             <div><dt>Scroll</dt><dd>Zoom</dd></div>
           </dl>
+          <h3 class="controls-head">Portal Puzzles</h3>
+          <dl class="controls">
+            <div><dt>Drag</dt><dd>Aim: the reticle's bearing is your aim, its distance your power</dd></div>
+            <div><dt>Right&#8209;drag</dt><dd>Shape: across is hyzer, up/down is launch angle</dd></div>
+            <div><dt>Scroll</dt><dd>Hyzer, one degree a notch</dd></div>
+            <div><dt>Space</dt><dd>Throw</dd></div>
+            <div><dt>R</dt><dd>Retry the level</dd></div>
+            <div><dt>A</dt><dd>Exact parameters drawer</dd></div>
+            <div><dt>C</dt><dd>Cycle the camera view</dd></div>
+            <div><dt>G</dt><dd>Ghost trajectory on / off</dd></div>
+            <div><dt>K</dt><dd>Show the level's hint</dd></div>
+            <div><dt>L</dt><dd>Level select</dd></div>
+            <div><dt>[ ]</dt><dd>Previous / next disc</dd></div>
+          </dl>
           <p class="footnote">
             Key ownership is declared in one file,
             <code>game/scripts/key_bindings.gd</code>, and a test fails the build
-            if any key is bound twice.
+            if any key is bound twice. The digit row is a panel-tab shortcut in
+            Flight Lab and is deliberately unbound in Portal Puzzles, so the two
+            modes never disagree about what a key does.
           </p>
         </section>
 
@@ -212,8 +262,9 @@
         <p>
           Built with Godot 4.7.1 (GL&nbsp;Compatibility / WebGL2), exported
           single&#8209;threaded, bundled by Vite and deployed to GitHub Pages by
-          GitHub Actions, behind a test gate of 196 GDScript checks and 121
-          Python checks.
+          GitHub Actions, behind a headless test gate of 270+ GDScript checks
+          and 121 Python checks &mdash; including a replay of every puzzle
+          level's validated solution.
         </p>
         <p>
           Aerodynamic data from Giljarhus, Kristiansen, Tutkun &amp; Oggiano

@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3]
+
+; `run/main_scene`. One export, two modes: this reads the requested mode (the
+; `?mode=` query string on the web, `--mode=` on a command line) and instances
+; either `scenes/main.tscn` (Flight Lab) or `scenes/ui/puzzle/puzzle_mode.tscn`
+; (Portal Puzzles) under itself.
+;
+; `tests/check_resources.gd` still walks and asserts `scenes/main.tscn` directly,
+; so the sandbox's root scene keeps its own guarantee independent of this one.
+
+[ext_resource type="Script" path="res://scripts/ui/puzzle/mode_boot.gd" id="1_boot"]
+
+[node name="Boot" type="Node"]
+script = ExtResource("1_boot")

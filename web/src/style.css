@@ -96,13 +96,115 @@ h1 {
   color: var(--text-dim);
 }
 
+/* --------------------------------------------------------------- modes --- */
+/* Two entries into one build. They are equals, not a primary and a secondary:
+   the sandbox and the puzzles are different products sharing a physics core,
+   and making one of them a small ghost button would misrepresent that. */
+
+.modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 1rem;
+  margin: 2.2rem 0 0;
+}
+
+.mode {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1.3rem 1.4rem 1.15rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(255, 255, 255, 0.012)
+  );
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.mode:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-bright);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.07),
+    rgba(255, 255, 255, 0.02)
+  );
+  box-shadow: 0 18px 40px -22px rgba(90, 168, 238, 0.7);
+}
+
+.mode:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.mode-kicker {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.mode-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.mode-body {
+  font-size: 0.93rem;
+  color: var(--text-dim);
+}
+
+.mode-go {
+  margin-top: 0.7rem;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.5rem 1.05rem;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #061020;
+  background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+}
+
+.mode-sub {
+  font-size: 0.72rem;
+  font-weight: 500;
+  opacity: 0.72;
+}
+
+.mode.is-disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.85);
+  opacity: 0.5;
+  transform: none;
+  box-shadow: none;
+}
+
+.mode.is-loading {
+  opacity: 0.75;
+  transform: none;
+}
+
 /* ----------------------------------------------------------------- cta --- */
 
 .cta {
   display: flex;
   flex-wrap: wrap;
   gap: 0.85rem;
-  margin: 2.2rem 0 0;
+  margin: 1.6rem 0 0;
 }
 
 .btn {
@@ -261,6 +363,19 @@ main {
 }
 
 /* ------------------------------------------------------------ controls --- */
+
+.controls-head {
+  margin: 1.5rem 0 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.controls-head:first-of-type {
+  margin-top: 0.4rem;
+}
 
 .controls {
   margin: 0;
