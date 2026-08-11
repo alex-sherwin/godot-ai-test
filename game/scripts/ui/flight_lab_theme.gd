@@ -275,6 +275,21 @@ static func _buttons(t: Theme) -> void:
 	t.set_color("font_hover_color", "IconButton", ACCENT_BRIGHT)
 	t.set_font_size("font_size", "IconButton", FS_BASE)
 
+	# Drawer handle. It is the one button drawn straight over the 3D view with
+	# no panel behind it, so it carries its own opaque background — a 3% white
+	# wash vanishes against a bright sky.
+	_variation(t, "HandleButton", "Button")
+	var handle := sb(GLASS, 8, 1, BORDER_BRIGHT, 14, 8)
+	handle.shadow_color = Color(0, 0, 0, 0.45)
+	handle.shadow_size = 8
+	t.set_stylebox("normal", "HandleButton", handle)
+	t.set_stylebox("hover", "HandleButton", sb(Color(0.09, 0.13, 0.20, 0.97), 8, 1, ACCENT, 14, 8))
+	t.set_stylebox("pressed", "HandleButton", sb(Color(0.145, 0.384, 0.788, 0.85), 8, 1, ACCENT, 14, 8))
+	t.set_stylebox("focus", "HandleButton", sb_empty(14, 8))
+	t.set_color("font_color", "HandleButton", TEXT)
+	t.set_color("font_hover_color", "HandleButton", ACCENT_BRIGHT)
+	t.set_font_size("font_size", "HandleButton", FS_SMALL)
+
 	# Roster row — a Button styled as a flat selectable card.
 	_variation(t, "RowButton", "Button")
 	t.set_stylebox("normal", "RowButton", sb(Color(1, 1, 1, 0.022), 7, 1, Color(1, 1, 1, 0.05), 9, 7))

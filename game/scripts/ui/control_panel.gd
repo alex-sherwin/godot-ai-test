@@ -331,7 +331,7 @@ func _build_action_bar() -> void:
 
 	_handle = Button.new()
 	_handle.text = "◀  CONTROLS"
-	_handle.theme_type_variation = "GhostButton"
+	_handle.theme_type_variation = "HandleButton"
 	_handle.focus_mode = Control.FOCUS_NONE
 	_handle.tooltip_text = "Show the control panel   (H)"
 	_handle.visible = false
