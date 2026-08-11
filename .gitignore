@@ -1,0 +1,23 @@
+# --- Build outputs that must never enter history ------------------------------
+# The Godot web export is ~40 MB (index.wasm alone is 39.5 MB). It is produced
+# by CI on every push; committing it would bloat history irreversibly.
+web/public/game/
+web/dist/
+web/node_modules/
+
+# Godot's local import/metadata cache.
+game/.godot/
+game/android/
+
+# --- Tooling ------------------------------------------------------------------
+tools/**/__pycache__/
+tools/.venv/
+__pycache__/
+
+# --- Editor / OS noise --------------------------------------------------------
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
