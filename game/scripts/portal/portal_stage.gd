@@ -71,11 +71,23 @@ const APERTURE_MARGIN := 0.06
 ## level. Rooms carry their identity in tint and vertex shading instead.
 const FOG_DENSITY := 0.0
 
+## Inset of a room's streamer volume from its own walls, metres. Keeps the
+## streaks off the shell so nothing z-fights the grid and nothing pokes through
+## a wall into the void between rooms — which WOULD be visible, because the
+## shell is single-sided and back-face culled from outside. Sized against the
+## two things that reach past the swept box: half a streak's length (up to about
+## 3 m) and the 2° spawn spread over a 50 m sweep (under 2 m).
+const WIND_INSET := 3.5
+
 var renderer: PortalRenderer = null
 var ghost: PortalGhost = null
 
 var rooms: Array[PortalRoom] = []
 var portals: Array[Portal] = []
+## One per room that actually has moving air, so a level with two calm chambers
+## and one windy one pays for one. Parallel to nothing — look them up by
+## `room_index` on the node, or just read `stats()["windy_rooms"]`.
+var wind_visuals: Array[WindVisualizer] = []
 ## Per-room Environment for the MAIN camera, and the LINEAR-tonemap copy a
 ## PORTAL camera must use. Indexed by room index.
 var environments: Array[Environment] = []
@@ -141,12 +153,15 @@ func build(level: LevelDataT, world: WorldT) -> void:
 	problems = PackedStringArray()
 	if renderer != null:
 		renderer.clear_portals()
+	for wv: WindVisualizer in wind_visuals:
+		_drop(wv)
 	for r: PortalRoom in rooms:
 		_drop(r)
 	for p: Portal in portals:
 		_drop(p)
 	rooms.clear()
 	portals.clear()
+	wind_visuals.clear()
 	environments.clear()
 	portal_environments.clear()
 	_by_id.clear()
@@ -168,6 +183,7 @@ func build(level: LevelDataT, world: WorldT) -> void:
 		rooms.append(room)
 		environments.append(room.environment)
 		portal_environments.append(room.portal_environment)
+		_build_room_wind(i, rd)
 
 	# A portal must still be worth a render pass from the overview camera, which
 	# `PuzzleLevelPreview._fit_distance()` puts a level-radius away. Level 10 is
@@ -183,6 +199,49 @@ func build(level: LevelDataT, world: WorldT) -> void:
 		renderer.max_render_distance = clampf(span.size.length() * 1.6, 110.0, 900.0)
 
 	_build_portals()
+
+
+## PER-ROOM AIR, MADE VISIBLE. Every room carries its own wind vector and
+## several levels are built entirely around the fact that the room behind the
+## portal has different air — Level 1 is a calm tee chamber looking into a 6 m/s
+## crosswind, Level 4 turns the corner twice through two differently-blown
+## galleries. The conditions panel says so in words; this makes the player able
+## to SEE the crosswind through the aperture before committing to a throw,
+## because the streamers live in the room and the portal camera is on
+## `LAYER_WORLD`.
+##
+## Driven by `rd.env.wind` — the very field `PuzzleWorld._environment()` copies
+## into the `FlightEnvironment` the simulator integrates, so the streamers and
+## the flight cannot disagree.
+##
+## A calm room gets NO node at all: no cost, and — more importantly — a level
+## whose point is "this room is windy and that one is not" should read that way
+## at a glance, which it does not if both rooms shimmer. Streamers are also the
+## one thing here that can be drawn twice (once directly, once inside a portal
+## view), so this is the object worth being stingy with.
+func _build_room_wind(index: int, rd: LevelDataT.RoomData) -> void:
+	if rd.env == null or rd.env.wind.length() < WindVisualizer.STREAMER_MIN_WIND:
+		return
+	var size: Vector3 = rd.size()
+	var inset: float = minf(WIND_INSET, size.y * 0.25)
+	var wv := WindVisualizer.new()
+	wv.name = "Wind%d_%s" % [index, rd.id]
+	# Instruments off: a windsock in every chamber is eight draw calls saying
+	# what the conditions panel already says. Ambient drift off: see above.
+	wv.instruments = false
+	wv.ambient_when_calm = false
+	wv.position = rd.world_center()
+	add_child(wv)
+	# No distance fade: the overview camera sits a level-radius back — 250 m on
+	# Level 10 — and that view is exactly the one that has to show three rooms'
+	# air at once. A room's streamers always have one of its own walls behind
+	# them, so the sky-scratch problem the fade solves outdoors cannot happen.
+	wv.configure_fade(0.0, 0.0)
+	# The room's own interior, minus a margin, in the visualiser's local space —
+	# which is room-centred because the node sits at `world_center()`.
+	wv.configure_volume(Vector3.ZERO, size * 0.5 - Vector3(inset, inset, inset))
+	wv.set_wind(rd.env.wind)
+	wind_visuals.append(wv)
 
 
 ## Portals and only portals. A portal disc opens an aperture and a button opens
@@ -419,5 +478,6 @@ func stats() -> Dictionary:
 	var s: Dictionary = renderer.debug_stats() if renderer != null else {}
 	s["rooms"] = rooms.size()
 	s["portals"] = portals.size()
+	s["windy_rooms"] = wind_visuals.size()
 	s["problems"] = problems.size()
 	return s
