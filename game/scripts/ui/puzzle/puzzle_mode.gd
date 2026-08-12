@@ -129,8 +129,11 @@ func _ready() -> void:
 
 	_refresh_level_list()
 	if levels.size() == 0:
+		# Say the directory without a `res://` prefix: tools/ci/check_scene_refs.py
+		# scans for quoted res:// literals as dependencies, and prose after the
+		# path reads as part of it.
 		var why := "\n".join(levels.load_errors) if not levels.load_errors.is_empty() \
-			else "res://data/levels/ is empty."
+			else "The data/levels/ directory is empty."
 		ui.level_select.set_notice("No levels loaded. " + why)
 		ui.set_status("No level data.")
 		ui.open_level_select()

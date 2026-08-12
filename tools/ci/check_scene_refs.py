@@ -77,7 +77,14 @@ def build_class_table(tracked: set[str]) -> dict[str, str]:
     for rel in sorted(tracked):
         if not rel.startswith("game/") or not rel.endswith(".gd"):
             continue
-        text = (REPO_ROOT / rel).read_text(encoding="utf-8", errors="replace")
+        # Tracked by git but absent from disk (a deleted-but-unstaged file).
+        # Skipping keeps the class table honest: the name then resolves to
+        # nothing and the walk reports it as a missing dependency, which is a
+        # far better diagnostic than this loop dying with a traceback.
+        try:
+            text = (REPO_ROOT / rel).read_text(encoding="utf-8", errors="replace")
+        except FileNotFoundError:
+            continue
         for name in CLASS_NAME_RE.findall(text):
             table[name] = "res://" + rel[len("game/"):]
     return table
@@ -91,7 +98,16 @@ def refs_from(res_path: str, text: str, classes: dict[str, str]) -> set[str]:
     if res_path.endswith(".gd"):
         # Directory prefixes (`res://data/aero/`) are joined with a filename at
         # runtime; they are not files and are checked as directories instead.
-        out.update(RES_LITERAL_RE.findall(text))
+        for literal in RES_LITERAL_RE.findall(text):
+            # A res:// path quoted inside a *sentence* is prose, not a dependency
+            # — e.g. the user-facing `"res://data/levels/ is empty."`. The regex
+            # cannot tell where the path stops and the English starts, and the
+            # trailing words hide the `/` that marks it as a directory, so it
+            # resolves as a missing file and fails the build on a real tree.
+            # No path in this project contains a space; treat one as prose.
+            if any(c.isspace() for c in literal):
+                continue
+            out.add(literal)
         # class_name edges. Over-matching an identifier only widens the set of
         # files required to exist, which is the safe direction to be wrong in.
         for ident in set(IDENTIFIER_RE.findall(text)):
