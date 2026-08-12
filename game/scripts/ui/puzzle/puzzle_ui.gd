@@ -31,6 +31,11 @@ signal throw_requested()
 signal retry_requested()
 signal level_requested(level_id: String)
 signal camera_view_changed(view: String)
+## One channel for everything the camera can be asked to do that is not a named
+## view: "inspect_toggle", "flag", "portal", "reset", "zoom_in", "zoom_out".
+signal camera_command(command: String)
+## The landing beat was cut short by a keypress. See `PuzzleModeApp._land`.
+signal hold_skipped()
 signal ghost_toggled(enabled: bool)
 signal disc_changed(disc_id: String)
 signal portal_disc_toggled(portal_disc_id: String)
@@ -39,8 +44,11 @@ signal sandbox_requested()
 const Facts := preload("res://scripts/ui/puzzle/level_facts.gd")
 const LevelDataT := preload("res://scripts/puzzle/level_data.gd")
 
-const VIEWS := ["tee", "top", "level", "follow"]
-const VIEW_LABELS := ["Tee", "Top", "Level", "Follow"]
+## `inspect` is free look. It is a view rather than a modifier so that it appears
+## in the same segmented control as the others, is reachable by the same C cycle,
+## and leaves by being replaced — there is no second state to get stuck in.
+const VIEWS := ["tee", "top", "level", "follow", "inspect"]
+const VIEW_LABELS := ["Tee", "Top", "Level", "Follow", "Inspect"]
 
 var aim: PuzzleAimController = null
 var overlay: PuzzleAimOverlay = null
@@ -58,6 +66,8 @@ var _portal_check: CheckButton = null
 var _view_buttons: Array[Button] = []
 var _ghost_check: CheckButton = null
 var _gesture_hint: PanelContainer = null
+var _inspect_row: HFlowContainer = null
+var _portal_focus_button: Button = null
 
 var _disc_buttons: Dictionary = {}
 var _disc_ids: PackedStringArray = PackedStringArray()
@@ -188,9 +198,16 @@ func _build_action_bar() -> void:
 	flow.add_child(VSeparator.new())
 
 	var group := ButtonGroup.new()
+	const VIEW_TIPS := {
+		"tee": "Behind the tee, along the aim.",
+		"top": "Straight down over the whole level — the view that explains a portal chain.",
+		"level": "The whole level from a corner.",
+		"follow": "Chase the disc.",
+		"inspect": "Free look: drag to orbit, right-drag to pan, wheel or +/- to zoom. Aiming is suspended and your throw is left exactly as it was.   (F)",
+	}
 	for i in VIEWS.size():
 		var b := UiKit.button(flow, VIEW_LABELS[i], "SegButton",
-			"Camera: %s   (C cycles)" % VIEW_LABELS[i])
+			"%s   (C cycles)" % str(VIEW_TIPS.get(VIEWS[i], "Camera: " + VIEW_LABELS[i])))
 		b.toggle_mode = true
 		b.button_group = group
 		if VIEWS[i] == "tee":
@@ -204,6 +221,8 @@ func _build_action_bar() -> void:
 	_ghost_check.toggled.connect(func(pressed: bool) -> void:
 		_ghost_enabled = pressed
 		ghost_toggled.emit(pressed))
+
+	_build_inspect_row(col)
 
 	var status_row := HBoxContainer.new()
 	status_row.add_theme_constant_override("separation", 8)
@@ -219,9 +238,49 @@ func _build_action_bar() -> void:
 	# Generated from the binding table, so the hint cannot advertise a key the
 	# handler does not bind.
 	_shortcuts.text = KeyBindings.hint(KeyBindings.PUZZLE,
-		[KEY_SPACE, KEY_R, KEY_A, KEY_C, KEY_G, KEY_K, KEY_L])
+		[KEY_SPACE, KEY_R, KEY_C, KEY_F, KEY_A, KEY_G, KEY_K, KEY_L])
 	_shortcuts.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	status_row.add_child(_shortcuts)
+
+
+## The inspect controls, and their legend. Only on screen while the camera is in
+## free look, and inside the action bar rather than floating: a control surface
+## that appears in a new place every time is a control surface nobody finds.
+##
+## The three buttons are the answer to "I have flown the camera somewhere odd":
+## two framings worth having on a multi-room level, and one way straight back.
+func _build_inspect_row(col: VBoxContainer) -> void:
+	_inspect_row = HFlowContainer.new()
+	_inspect_row.add_theme_constant_override("h_separation", 6)
+	_inspect_row.visible = false
+	col.add_child(_inspect_row)
+
+	var tag := Label.new()
+	tag.theme_type_variation = "TinyLabel"
+	tag.text = "INSPECT"
+	tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_inspect_row.add_child(tag)
+
+	var flag := UiKit.button(_inspect_row, "Flag", "GhostButton",
+		"Orbit the flag, seen from the tee's side of it.")
+	flag.pressed.connect(func() -> void: camera_command.emit("flag"))
+	_portal_focus_button = UiKit.button(_inspect_row, "Portal", "GhostButton",
+		"Orbit a portal, square-on from the room it opens into.")
+	_portal_focus_button.pressed.connect(func() -> void: camera_command.emit("portal"))
+	var home := UiKit.button(_inspect_row, "Back to the tee", "GhostButton",
+		"Put the camera back behind the tee, along the aim.   (Home)")
+	home.pressed.connect(func() -> void: camera_command.emit("reset"))
+
+	var legend := Label.new()
+	legend.theme_type_variation = "TinyLabel"
+	legend.text = "drag orbit · right-drag pan · wheel or + / − zoom · Esc back to the tee"
+	legend.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_inspect_row.add_child(legend)
+
+
+func set_portal_focus_available(available: bool) -> void:
+	if _portal_focus_button != null:
+		_portal_focus_button.visible = available
 
 
 ## The gesture legend. It sits over the view, above the action bar, because the
@@ -238,7 +297,12 @@ func _build_gesture_hint() -> void:
 	for row: Array in [
 			["Drag", "move the reticle — its bearing is your aim, its distance your power"],
 			["Right-drag", "shape the release — across is hyzer, up/down is launch angle"],
-			["Wheel", "hyzer, one degree a notch"]]:
+			["Wheel", "hyzer, one degree a notch"],
+			# The camera is the other half of the mouse and has to be advertised in
+			# the same place, or free look is a feature nobody finds. Middle-drag
+			# works at any time because the aim never uses that button.
+			["Middle-drag", "orbit the camera — starts inspecting, shift to pan"],
+			["F", "inspect: free look around the course, aiming suspended"]]:
 		var line := HBoxContainer.new()
 		line.add_theme_constant_override("separation", 8)
 		col.add_child(line)
@@ -345,25 +409,66 @@ func ghost_enabled() -> bool:
 
 
 func open_level_select() -> void:
+	end_landing_hold()
 	level_select.visible = true
 	results.visible = false
 
 
+# ============================================================ landing hold ===
+
+## Mark the landing and hold everything else off it. `label` carries the number
+## the player threw for; `hint` says how to stop waiting.
+func begin_landing_hold(at: Vector3, label: String, hint: String) -> void:
+	overlay.landing_position = at
+	overlay.landing_label = label
+	overlay.landing_hint = hint
+	overlay.show_landing = true
+	overlay.holding = true
+
+
+## End the beat but keep the marker: the results panel is a centred modal with a
+## "Look at the landing" button, and that button has to lead somewhere.
+func end_landing_hold() -> void:
+	overlay.holding = false
+	overlay.landing_hint = ""
+
+
+func clear_landing() -> void:
+	end_landing_hold()
+	overlay.show_landing = false
+	overlay.landing_label = ""
+
+
 func cycle_camera() -> void:
-	var current := 0
-	for i in _view_buttons.size():
-		if _view_buttons[i].button_pressed:
-			current = i
-			break
+	var current := _current_view_index()
 	var next: int = (current + 1) % _view_buttons.size()
 	_view_buttons[next].button_pressed = true
 	camera_view_changed.emit(VIEWS[next])
 
 
+func _current_view_index() -> int:
+	for i in _view_buttons.size():
+		if _view_buttons[i].button_pressed:
+			return i
+	return 0
+
+
+func current_view() -> String:
+	return VIEWS[_current_view_index()]
+
+
+## `view` may be a framing with no button of its own — the landing hold is one —
+## in which case the selector is left showing the view it will return to.
 func set_camera_view(view: String) -> void:
 	for i in VIEWS.size():
 		if VIEWS[i] == view:
 			_view_buttons[i].button_pressed = true
+	var inspecting: bool = view == "inspect"
+	_inspect_row.visible = inspecting
+	# The overlay is the one place that decides whether a drag is an aim or a
+	# camera move, so it is told, rather than asking the rig every event.
+	overlay.inspecting = inspecting
+	_layout()
 
 
 # =============================================================== shortcuts ===
@@ -374,6 +479,14 @@ func set_camera_view(view: String) -> void:
 func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
+		return
+	# ANY key cuts the landing beat short and brings the results, bound or not,
+	# and does nothing else with that press. A key that both dismissed the hold
+	# and did its own job would mean an impatient R retried the level before the
+	# player had seen the score they were retrying.
+	if overlay.holding:
+		hold_skipped.emit()
+		get_viewport().set_input_as_handled()
 		return
 	if not KeyBindings.PUZZLE.has(key.keycode):
 		return
@@ -388,6 +501,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			advanced.set_collapsed(not advanced.is_collapsed())
 		KEY_C:
 			cycle_camera()
+		KEY_F:
+			camera_command.emit("inspect_toggle")
+		KEY_HOME:
+			camera_command.emit("reset")
+		KEY_EQUAL, KEY_PLUS:
+			camera_command.emit("zoom_in")
+		KEY_MINUS:
+			camera_command.emit("zoom_out")
 		KEY_G:
 			_ghost_check.button_pressed = not _ghost_check.button_pressed
 		KEY_K:
@@ -411,6 +532,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				level_select.visible = false
 			elif results.visible:
 				results.visible = false
+			elif current_view() == "inspect":
+				# "Back" out of a camera that has been flown somewhere odd, which
+				# is the same gesture as backing out of a modal.
+				camera_command.emit("reset")
 			elif not advanced.is_collapsed():
 				advanced.set_collapsed(true)
 			else:

@@ -51,6 +51,14 @@ const DiscLibraryT := preload("res://scripts/physics/disc_library.gd")
 ## advances.
 const PLAYBACK_RATE := 1.6
 
+## How long the camera holds on the landing before the results screen appears.
+## A results card is a centred modal and the landing it describes is behind it,
+## so for two seconds there is no card: the camera eases onto the spot, the
+## marker and the distance go up next to it, and the flag stays in shot. Any key
+## or any click ends it early — this is a retry loop and nobody may be made to
+## wait through the same beat forty times.
+const LANDING_HOLD_S := 2.0
+
 var levels: PuzzleLevelLibrary = null
 var session: PuzzleSession = null
 var ghost: PuzzleGhost = null
@@ -63,9 +71,19 @@ var _discs: DiscLibrary = null
 var _level: PuzzleLevelData = null
 var _level_index: int = 0
 var _view: String = "tee"
+## The view to come back to when free look is switched off. Free look is entered
+## from wherever the player was, so that is where "off" means.
+var _view_before_inspect: String = "tee"
 var _flying: bool = false
 var _throw_index: int = -1
 var _last_ghost_kind: String = ""
+## The landing hold: whether one is running, how long is left of it, and what was
+## deferred until it ends. `_hold_pending` carries the status line always and an
+## `outcome` only when the attempt is over and a results card is owed.
+var _hold_left: float = 0.0
+var _hold_pending: Dictionary = {}
+var _holding: bool = false
+var _hold_started_ms: int = 0
 ## One stage diagnostic per level; see `_report_stage`.
 var _stage_reported: bool = false
 
@@ -93,14 +111,21 @@ func _ready() -> void:
 	ui.retry_requested.connect(_on_retry)
 	ui.level_requested.connect(load_level_by_id)
 	ui.camera_view_changed.connect(set_view)
+	ui.camera_command.connect(_on_camera_command)
+	ui.hold_skipped.connect(func() -> void: _end_hold())
 	ui.ghost_toggled.connect(_on_ghost_toggled)
 	ui.disc_changed.connect(_on_disc_changed)
 	ui.portal_disc_toggled.connect(func(_id: String) -> void: _request_ghost())
 	ui.sandbox_requested.connect(func() -> void: sandbox_requested.emit())
 	ui.overlay.aim_dragged.connect(_request_ghost)
 	ui.overlay.drag_finished.connect(_request_ghost)
+	ui.overlay.hold_skipped.connect(func() -> void: _end_hold())
+	ui.overlay.inspect_requested.connect(func() -> void: set_view("inspect"))
 	ui.results.next_level_requested.connect(_on_next_level)
 	ui.overlay.camera = preview.camera
+	# The overlay owns the pointer over the 3D view, so it is what routes
+	# inspection gestures to the rig. See `aim_overlay.gd`.
+	ui.overlay.rig = preview.rig
 
 	_refresh_level_list()
 	if levels.size() == 0:
@@ -149,6 +174,7 @@ func load_level_index(i: int) -> void:
 	_flying = false
 	_throw_index = -1
 	_stage_reported = false
+	_cancel_hold()
 
 	session.start(level, _discs)
 	for e in session.start_errors:
@@ -186,11 +212,15 @@ func load_level_index(i: int) -> void:
 	ui.set_level(level, _discs)
 	ui.overlay.flag_position = level.flag_world()
 	ui.overlay.in_flight = false
+	ui.clear_landing()
+	ui.set_portal_focus_available(preview.portal_count() > 0)
 	ui.set_throw_enabled(true)
 	ui.results.visible = false
 	ui.level_select.visible = false
 	_refresh_hud()
-	set_view("tee")
+	# Immediate: easing in from the previous level's geometry would fly the
+	# camera across the void between two rooms 130 m apart.
+	set_view("tee", true)
 	_predict_now()
 	# One line per level, in the shape the sandbox's boot diagnostics take. It is
 	# what a browser run has to show for the layout to be checkable at all: with
@@ -224,15 +254,18 @@ func _on_next_level() -> void:
 func _on_retry() -> void:
 	if _level == null:
 		return
+	_cancel_hold()
 	session.restart()
 	ghost.sync(session.world)
 	preview.build(_level, session.world)
 	preview.clear_flight_paths()
+	preview.clear_landing_marker()
 	preview.hide_disc()
 	_flying = false
 	_throw_index = -1
 	ui.results.visible = false
 	ui.overlay.in_flight = false
+	ui.clear_landing()
 	ui.set_throw_enabled(true)
 	ui.set_status("Level reset — %d disc%s." % [_level.max_discs,
 		"" if _level.max_discs == 1 else "s"])
@@ -246,6 +279,7 @@ func _on_retry() -> void:
 func _on_throw() -> void:
 	if _flying or _level == null:
 		return
+	_cancel_hold()
 	var disc_id := ui.current_disc_id()
 	var portal_disc := ui.current_portal_disc_id()
 	var problem := session.throw_error(disc_id, portal_disc)
@@ -259,6 +293,8 @@ func _on_throw() -> void:
 	_throw_index = session.throws.size() - 1
 	_flying = true
 	ui.overlay.in_flight = true
+	ui.clear_landing()
+	preview.clear_landing_marker()
 	ui.set_throw_enabled(false)
 	ui.set_status("%s away — %s" % [_disc_name(disc_id), aim.summary()])
 	set_view("follow")
@@ -285,6 +321,10 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_report_stage()
+	if _holding:
+		_hold_left -= delta
+		if _hold_left <= 0.0:
+			_end_hold()
 	if _flying or _level == null:
 		return
 	# The predictor decides when to integrate; this only gives it a clock.
@@ -362,19 +402,92 @@ func _land() -> void:
 		_refresh_level_list()
 		ui.level_select.set_current(_level.id)
 
+	# THE BEAT. Nothing about the result goes on screen for `LANDING_HOLD_S`:
+	# the camera settles onto the landing, the marker and the distance go up
+	# beside it, and the flag stays in shot. What happens afterwards — a results
+	# card, or back to the tee for the next disc — is decided here and executed by
+	# `_end_hold`.
+	preview.set_landing_marker(record.landing_world)
+	_frame_landing(record)
+	ui.begin_landing_hold(record.landing_world, _landing_tag(record),
+		"click or press any key")
+	ui.set_status(_landing_line(record))
+	_hold_pending = {"line": _landing_line(record)}
 	if session.attempt_over():
-		ui.results.show_outcome(_level, _outcome(record), _level_index + 1 < levels.size())
+		_hold_pending["outcome"] = _outcome(record)
+		_hold_pending["has_next"] = _level_index + 1 < levels.size()
+	_hold_left = LANDING_HOLD_S
+	_holding = true
+	_hold_started_ms = Time.get_ticks_msec()
+	_predict_now()
+
+
+## Put the camera on the landing, with the flag in the same shot whenever the
+## disc actually got to the flag's room. `incoming` is the direction the disc was
+## travelling when it stopped, which is the fallback line to look along when the
+## flag is somewhere else entirely.
+func _frame_landing(record: PuzzleSession.ThrowRecord) -> void:
+	var incoming := Vector3(0, 0, -1)
+	var n := record.trajectory.size()
+	if n >= 2:
+		var d: Vector3 = record.trajectory[n - 1] - record.trajectory[n - 2]
+		if d.length_squared() > 1e-6:
+			incoming = d.normalized()
+	preview.view_landing(record.landing_world, _level.flag_world(),
+		record.end_room == _level.flag_room, incoming)
+	_view = "landing"
+	# No button reads "landing"; the selector keeps showing the view this will
+	# return to. What the call is for is closing free look and its toolbar, so a
+	# landing is never behind an inspect legend.
+	ui.set_camera_view("landing")
+
+
+## The label that sits next to the landing marker during the hold. The distance
+## to the flag is the number the player threw for, so it leads.
+func _landing_tag(record: PuzzleSession.ThrowRecord) -> String:
+	if record.flag_distance_m < INF:
+		return "LANDED · %.2f m from the flag" % record.flag_distance_m
+	if not record.placed_portal_id.is_empty():
+		return "PORTAL OPENED · %s" % record.placed_portal_id
+	return "LANDED · %s" % Facts.room_name(_level, record.end_room)
+
+
+## The hold ran out, or the player cut it short. Either way the beat is over and
+## whatever was deferred happens now.
+func _end_hold() -> void:
+	if not _holding:
+		return
+	_holding = false
+	_hold_left = 0.0
+	ui.end_landing_hold()
+	# The beat is a claim about what the player was shown and for how long, and
+	# the HUD is inside the canvas where no driver can read it. This line is how
+	# a browser proves the results waited.
+	print("[PuzzleMode] hold ended after %.2f s -> %s" % [
+		(Time.get_ticks_msec() - _hold_started_ms) / 1000.0,
+		"results" if _hold_pending.has("outcome") else "tee"])
+	if _hold_pending.has("outcome"):
+		ui.results.show_outcome(_level, _hold_pending["outcome"],
+			bool(_hold_pending["has_next"]))
 		ui.set_throw_enabled(session.discs_remaining() > 0)
-		# The camera selector reads "Level", but the framing is the landing with
-		# the modal accounted for. Pressing C from here cycles to the plain views.
-		set_view("level")
-		preview.view_landing(record.landing_world)
+		# The camera stays on the landing: the results card is centred and the
+		# landing was framed low for exactly this moment.
 	else:
 		ui.set_throw_enabled(true)
-		ui.set_status("%s  %d disc%s left." % [_landing_line(record),
+		ui.set_status("%s  %d disc%s left." % [str(_hold_pending.get("line", "Landed.")),
 			session.discs_remaining(), "" if session.discs_remaining() == 1 else "s"])
 		set_view("tee")
-	_predict_now()
+	_hold_pending.clear()
+
+
+## Drop the beat without showing what it was holding: the player has already
+## moved on (retry, a new level, another throw).
+func _cancel_hold() -> void:
+	_holding = false
+	_hold_left = 0.0
+	_hold_pending.clear()
+	if ui != null:
+		ui.end_landing_hold()
 
 
 ## `ThrowRecord` flattened into the dictionary the results screen renders. The
@@ -562,7 +675,11 @@ static func _status_word(p: Dictionary) -> String:
 
 # =================================================================== camera ===
 
-func set_view(view: String) -> void:
+func set_view(view: String, immediate: bool = false) -> void:
+	if view != "inspect" and _view == "inspect":
+		_view_before_inspect = view
+	elif view == "inspect" and _view != "inspect":
+		_view_before_inspect = _view if _view != "landing" else "tee"
 	_view = view
 	ui.set_camera_view(view)
 	match view:
@@ -570,8 +687,38 @@ func set_view(view: String) -> void:
 			preview.view_top()
 		"level":
 			preview.view_level()
+		"inspect":
+			# Inherits the pose it is entered from, so free look starts exactly
+			# where the player was looking rather than somewhere it chose.
+			preview.view_inspect()
 		"follow":
 			if not _flying:
-				preview.view_tee(aim.reticle_position() - aim.tee_position)
+				preview.view_tee(aim.reticle_position() - aim.tee_position, immediate)
 		_:
-			preview.view_tee(aim.reticle_position() - aim.tee_position)
+			preview.view_tee(aim.reticle_position() - aim.tee_position, immediate)
+
+
+## Everything the camera can be asked for that is not a named view. Kept in one
+## place so `PuzzleUi` needs no opinion about the rig, and the level geometry
+## (where the flag is, whether there is a portal) stays on this side.
+func _on_camera_command(command: String) -> void:
+	match command:
+		"inspect_toggle":
+			set_view(_view_before_inspect if _view == "inspect" else "inspect")
+		"flag":
+			preview.focus_flag()
+			set_view("inspect")
+		"portal":
+			if preview.focus_portal():
+				set_view("inspect")
+		"reset":
+			set_view("tee")
+		"zoom_in", "zoom_out":
+			# Reaching for zoom is reaching for the free camera, so it turns it on
+			# rather than doing nothing visible in a fixed view.
+			if _view != "inspect":
+				set_view("inspect")
+			if command == "zoom_in":
+				preview.rig.zoom_in()
+			else:
+				preview.rig.zoom_out()

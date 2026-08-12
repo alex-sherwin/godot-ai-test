@@ -41,6 +41,14 @@ extends Node3D
 const UI_SCENE_PATH := "res://scenes/ui/control_panel.tscn"
 const RANGE_SCENE_PATH := "res://scenes/world/range.tscn"
 
+## How long the camera holds on the landing before the throw's numbers are
+## published. A throw ends where the disc stops, and a summary that lands the
+## instant it does takes the eye off the one thing the player threw to see. Two
+## seconds is a beat: long enough to read the marker and its distance label, short
+## enough that a retry loop never feels blocked. Any key or any click ends it
+## early, and so does throwing again or asking for another camera view.
+const LANDING_HOLD_S := 2.0
+
 ## True disc scale is 21 cm, which is 5 px at 100 m. Rather than lie about the
 ## size up close, the disc is drawn 1:1 until it is far enough away to vanish
 ## and is then floated up to a floor of ~0.008 rad of screen angle, capped at
@@ -88,6 +96,8 @@ var _idle_pose := Vector3(0.0, 1.4, 0.0)
 var _perf_report_t: float = 0.0
 var _perf_reports: int = 0
 var _last_result: DiscFlightSim.FlightResult = null
+var _hold_left: float = 0.0
+var _held_result: DiscFlightSim.FlightResult = null
 
 const DISC_COLORS: Array[Color] = [
 	Color(0.30, 0.62, 0.95), Color(0.95, 0.42, 0.30), Color(0.42, 0.82, 0.48),
@@ -314,6 +324,10 @@ func _default_throw() -> void:
 func throw(params: DiscFlightSim.ThrowParams = null) -> void:
 	if disc == null:
 		return
+	# Throwing again is the loudest possible "I am done looking at that one".
+	_end_landing_hold()
+	if _rig.get_view() == "landing":
+		set_camera_view("tee")
 	if params != null:
 		_throw = params
 	sim.configure(disc, env)
@@ -355,6 +369,7 @@ func _switch_view_after(delay: float, view: String) -> void:
 
 
 func _reset_to_tee() -> void:
+	_end_landing_hold()
 	_flying = false
 	_idle_pose = Vector3(0.0, _throw.launch_height_m, 0.0)
 	_disc_node.global_position = _idle_pose
@@ -414,6 +429,10 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	if _hold_left > 0.0:
+		_hold_left -= delta
+		if _hold_left <= 0.0:
+			_end_landing_hold()
 	# Screen-size floor for the disc; see VISUAL_ANGULAR_FLOOR.
 	if _rig and _rig.camera and _disc_node:
 		var d: float = _rig.camera.global_position.distance_to(_disc_node.global_position)
@@ -500,11 +519,9 @@ func _land(st: DiscFlightSim.DiscState) -> void:
 	_set_if(r, "failed", sim.has_failed())
 	_last_result = r
 
+	# The marker and its distance label go up immediately — they are what the
+	# hold is FOR. What waits is the panel's summary; see `LANDING_HOLD_S`.
 	_trails.end_flight(r.distance_m, r.lateral_m, st.position)
-	# The legend is only refreshed from the live-telemetry path, which stops
-	# with the flight; the new ghost has to be pushed explicitly.
-	if _hud.is_enabled():
-		_update_legend_only()
 	_vectors.hide_all()
 	# Let it lie flat on the ground rather than half-buried: the mesh origin is
 	# the parting line, which sits above the resting plane.
@@ -512,10 +529,42 @@ func _land(st: DiscFlightSim.DiscState) -> void:
 	_disc_node.global_position = Vector3(st.position.x,
 		float(norm["parting_line_m"]), st.position.z)
 	_disc_node.quaternion = Quaternion(Vector3.UP, _spin_phase)
-	_call_panel("set_flight_result", [r])
 	_refresh_status()
+	# The console line is NOT held back. It is what a headless browser reads a
+	# throw off, and a diagnostic that waits on a presentation timer is a
+	# diagnostic that reports the timer.
 	print("[FlightApp] landed distance=%.1f m lateral=%+.1f m peak=%.1f m t=%.2f s" % [
 		r.distance_m, r.lateral_m, r.max_height_m, r.flight_time_s])
+
+	_held_result = r
+	_hold_left = LANDING_HOLD_S
+	# Only take the camera if it was watching the flight. Someone who picked the
+	# top or side view picked it to read the shape, and hijacking that would be a
+	# worse interruption than the one this hold exists to remove.
+	var view := _rig.get_view()
+	if view == "follow" or view == "tee":
+		_rig.hold_landing(st.position)
+
+
+## Publish the throw's numbers. Called when the landing hold runs out, or early
+## when the player asks for anything else. Returns whether a hold was ended, so
+## the input handlers can tell "this keystroke skipped the beat" from "there was
+## no beat to skip".
+func _end_landing_hold() -> bool:
+	if _held_result == null:
+		return false
+	var r := _held_result
+	_held_result = null
+	# Same reason as the landing line above: the panel is inside the canvas, so
+	# how long the summary waited is only checkable from the console.
+	print("[FlightApp] summary after %.2f s hold" % (LANDING_HOLD_S - maxf(_hold_left, 0.0)))
+	_hold_left = 0.0
+	# The legend is only refreshed from the live-telemetry path, which stops
+	# with the flight; the new ghost has to be pushed explicitly.
+	if _hud.is_enabled():
+		_update_legend_only()
+	_call_panel("set_flight_result", [r])
+	return true
 
 
 ## Assign only if the property still exists on the object.
@@ -668,6 +717,8 @@ func _on_vectors_toggled(on: bool) -> void:
 
 
 func set_camera_view(view: Variant) -> void:
+	# Asking for another view is asking to stop looking at the landing.
+	_end_landing_hold()
 	_rig.set_view(str(view))
 
 
@@ -773,6 +824,15 @@ func _coerce_env(e: Variant) -> DiscFlightSim.FlightEnvironment:
 # Keyboard. Ownership lives in scripts/key_bindings.gd — nowhere else.
 # ---------------------------------------------------------------------------
 
+## A click anywhere on the 3D view ends the landing hold. Deliberately absent
+## from `KeyBindings` — there is no key here, and the mouse is not part of that
+## contract.
+func _unhandled_input(event: InputEvent) -> void:
+	var mb := event as InputEventMouseButton
+	if mb != null and mb.pressed and _end_landing_hold():
+		get_viewport().set_input_as_handled()
+
+
 ## Ownership of every key in the project is declared in
 ## `scripts/key_bindings.gd`; see that file. The control panel is the authority
 ## on input when it exists, so with a panel present only `KeyBindings.WORLD` is
@@ -782,6 +842,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	if k == null or not k.pressed or k.echo:
 		return
+	# ANY key ends the landing beat, bound or not: the beat is a presentation
+	# pause and impatience is the only signal it needs. The key still does its
+	# own job below, because a player who pressed Space meant "throw again".
+	_end_landing_hold()
 	var table: Dictionary = KeyBindings.WORLD if _panel != null else KeyBindings.STANDALONE
 	if not table.has(k.keycode):
 		return

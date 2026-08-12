@@ -57,6 +57,7 @@ const PT := preload("res://scripts/ui/puzzle/puzzle_theme.gd")
 const LevelDataT := preload("res://scripts/puzzle/level_data.gd")
 const WorldT := preload("res://scripts/puzzle/puzzle_world.gd")
 const Facts := preload("res://scripts/ui/puzzle/level_facts.gd")
+const RigT := preload("res://scripts/app/camera_rig.gd")
 
 const GRID_SPACING := 10.0
 
@@ -69,6 +70,10 @@ const GRID_SPACING := 10.0
 const DECAL_LIFT := 0.08
 
 var camera: Camera3D = null
+## The sandbox's camera rig, adopted rather than reimplemented: it owns the
+## easing between framings and the free-look orbit, and this file owns the
+## framings themselves, because only the level knows where a camera may stand.
+var rig: CameraRig = null
 ## The solid world: rooms, walls, apertures, live portal views. See the class
 ## comment — this file draws over it, it does not replace it.
 var stage: PortalStage = null
@@ -77,6 +82,7 @@ var _static_solid: MeshInstance3D = null
 var _static_wire: MeshInstance3D = null
 var _predict_node: MeshInstance3D = null
 var _barrier_node: MeshInstance3D = null
+var _landing_node: MeshInstance3D = null
 var _buttons_root: Node3D = null
 var _paths: Node3D = null
 var _disc: MeshInstance3D = null
@@ -104,6 +110,27 @@ func _ready() -> void:
 	# room's LINEAR-tonemap copy — see `PortalRoom._make_portal_environment`.
 	camera.environment = _fallback_environment()
 	add_child(camera)
+
+	# One camera system for both modes. The rig is handed the camera the portal
+	# renderer draws with, publishes nothing of its own until this file pushes a
+	# pose, and does not read the mouse: `PuzzleAimOverlay` is a full-screen
+	# Control that takes every click before `_unhandled_input` runs, so it routes
+	# inspection gestures in explicitly. One owner of the mouse, so free look
+	# cannot fight drag-to-aim.
+	rig = RigT.new()
+	rig.name = "CameraRig"
+	rig.default_view = "custom"
+	rig.owns_input = false
+	# The flight is replayed at 1.6x, so the chase camera is tracking a target
+	# doing up to ~48 m/s. At the sandbox's rate it would trail far enough to put
+	# the disc on the edge of the frame.
+	rig.smooth_rate = 9.0
+	rig.use_camera(camera)
+	add_child(rig)
+	# The room air is chosen from where the eye ENDS UP, and the rig moves the eye
+	# in its own `_process`. A higher priority number runs later, so this node's
+	# `_process` sees the pose the player is actually looking through.
+	process_priority = 10
 
 	stage = PortalStage.new()
 	stage.name = "PortalStage"
@@ -184,8 +211,18 @@ func build(level: LevelDataT, world: WorldT) -> void:
 	_static_solid = _attach(solid, false)
 	_static_wire = _attach(wire, true)
 
+	clear_landing_marker()
 	_build_buttons()
 	rebuild_dynamic(false)
+
+	# Free look is bounded by the level plus a margin: a mis-swiped orbit that
+	# ends 400 m out in the void is not a camera, it is a lost player. The margin
+	# is generous enough to get outside a room and look at the whole layout, which
+	# is half of what inspection is for.
+	if rig != null:
+		rig.ground_y = _bounds.position.y
+		rig.free_bounds = _bounds.grow(60.0)
+		rig.has_free_bounds = true
 
 
 ## Portals and barriers change between throws — a button opens a gate, a portal
@@ -506,18 +543,38 @@ func flag_world() -> Vector3:
 	return _level.flag_world() if _level != null else Vector3.ZERO
 
 
+## Every framing goes through here: the rig eases toward the pose and applies it,
+## so a view change is a glide rather than a cut, and the landing hold gets its
+## drift toward the disc for free. `immediate` is for a level load, where easing
+## in from the previous level's geometry would fly the camera through a wall.
+func _push(pos: Vector3, look: Vector3, immediate: bool = false) -> void:
+	if rig == null:
+		# No rig (a bare instance in a test): place the camera directly.
+		if camera != null:
+			camera.position = pos
+			camera.look_at(look, Vector3.UP)
+			_apply_room_air()
+		return
+	rig.push_pose(pos, look, Vector3.UP, camera.fov if camera != null else 62.0, immediate)
+
+
+## The room air is chosen from where the eye actually is, and after this node's
+## `process_priority` the rig has already moved it this frame.
+func _process(_delta: float) -> void:
+	_apply_room_air()
+
+
 ## Behind and above the tee, looking along the aim. The default view, because it
 ## is the one in which the drag gesture means what it looks like it means.
-func view_tee(aim_dir: Vector3) -> void:
+func view_tee(aim_dir: Vector3, immediate: bool = false) -> void:
 	if camera == null:
 		return
 	var dir := _flat_dir(aim_dir)
 	# Low and close. A high camera flattens a 12 m portal into two horizontal
 	# bars — measured on Level 1 at 12 m up, where the aperture read as a stripe
 	# rather than as a hole you could throw through.
-	camera.position = tee_world() - dir * 30.0 + Vector3(0, 7.0, 0)
-	camera.look_at(tee_world() + dir * 55.0 + Vector3(0, 5.0, 0), Vector3.UP)
-	_apply_room_air()
+	_push(tee_world() - dir * 30.0 + Vector3(0, 7.0, 0),
+		tee_world() + dir * 55.0 + Vector3(0, 5.0, 0), immediate)
 
 
 ## The main camera renders with the air of the room its eye is in. A PORTAL
@@ -529,7 +586,7 @@ func _apply_room_air() -> void:
 	if camera == null or stage == null:
 		return
 	var e: Environment = stage.environment_at(camera.global_position)
-	if e != null:
+	if e != null and camera.environment != e:
 		camera.environment = e
 
 
@@ -539,9 +596,15 @@ func view_top() -> void:
 	if camera == null:
 		return
 	var c := _bounds.get_center()
-	camera.position = Vector3(c.x, _bounds.end.y + _fit_distance(), c.z)
-	camera.look_at(Vector3(c.x, 0.0, c.z), Vector3(0, 0, -1))
-	_apply_room_air()
+	# up = -Z, so downrange is up the screen. Pushed through the rig like every
+	# other framing, which is also what smooths the roll from tee to top.
+	if rig != null:
+		rig.push_pose(Vector3(c.x, _bounds.end.y + _fit_distance(), c.z),
+			Vector3(c.x, 0.0, c.z), Vector3(0, 0, -1), camera.fov)
+	else:
+		camera.position = Vector3(c.x, _bounds.end.y + _fit_distance(), c.z)
+		camera.look_at(Vector3(c.x, 0.0, c.z), Vector3(0, 0, -1))
+		_apply_room_air()
 
 
 func view_level() -> void:
@@ -549,9 +612,7 @@ func view_level() -> void:
 		return
 	var c := _bounds.get_center()
 	var d := _fit_distance()
-	camera.position = c + Vector3(0.42, 0.55, 0.72).normalized() * d
-	camera.look_at(c, Vector3.UP)
-	_apply_room_air()
+	_push(c + Vector3(0.42, 0.55, 0.72).normalized() * d, c)
 
 
 ## Far enough back that the level's bounding sphere fits in the frame, with a
@@ -569,22 +630,145 @@ func _fit_distance() -> float:
 ## frame. The results panel is a centred modal, so a landing framed dead centre
 ## is a landing behind the panel describing it — measured on Level 8, where the
 ## whole level ended up under the results card.
-func view_landing(landing: Vector3) -> void:
+##
+## When the flag is in the same room the shot is taken from BEHIND the landing
+## along the landing-to-flag line, so the marker, the distance and the flag are
+## one composition rather than three things the player has to hunt for. The eye
+## is then clamped into the room the disc stopped in: these rooms are closed
+## shells and a camera pushed through the ceiling by a wide framing sees the back
+## faces of a room, which is to say nothing at all.
+func view_landing(landing: Vector3, flag: Vector3, include_flag: bool,
+		incoming: Vector3 = Vector3.ZERO) -> void:
 	if camera == null:
 		return
-	camera.position = landing + Vector3(0.0, 16.0, 34.0)
-	camera.look_at(landing + Vector3(0.0, 14.0, 0.0), Vector3.UP)
-	_apply_room_air()
+	var focus := landing
+	var spread := 0.0
+	var dir := _flat_dir(incoming)
+	if include_flag:
+		spread = landing.distance_to(flag)
+		focus = landing.lerp(flag, 0.45)
+		var to_flag := flag - landing
+		to_flag.y = 0.0
+		if to_flag.length_squared() > 1.0:
+			dir = to_flag.normalized()
+	var d: float = clampf(22.0 + spread * 1.1, 22.0, 78.0)
+	var eye: Vector3 = focus - dir * (d * 0.78) + Vector3(0.0, d * 0.42 + 3.0, 0.0)
+	_push(_inside_room_of(landing, eye), focus + Vector3(0.0, d * 0.15, 0.0))
+
+
+## Keep a viewpoint inside the room a given point is in. Outside every room, or
+## when the point is in none, the eye is returned untouched — the gaps between
+## rooms are a legitimate place to stand and read the layout from.
+func _inside_room_of(point: Vector3, eye: Vector3) -> Vector3:
+	if _level == null:
+		return eye
+	for r in _level.rooms:
+		var room: LevelDataT.RoomData = r
+		var lo := room.world_min()
+		var hi := room.world_max()
+		if point.x < lo.x or point.x > hi.x or point.z < lo.z or point.z > hi.z:
+			continue
+		var inset := 1.5
+		return Vector3(
+			clampf(eye.x, minf(lo.x + inset, hi.x), maxf(hi.x - inset, lo.x)),
+			clampf(eye.y, lo.y + inset, maxf(hi.y - inset, lo.y + inset)),
+			clampf(eye.z, minf(lo.z + inset, hi.z), maxf(hi.z - inset, lo.z)))
+	return eye
 
 
 func view_follow(target: Vector3, aim_dir: Vector3) -> void:
 	if camera == null:
 		return
 	var dir := _flat_dir(aim_dir)
-	var want := target - dir * 24.0 + Vector3(0, 10.0, 0)
-	camera.position = camera.position.lerp(want, 0.15)
-	camera.look_at(target, Vector3.UP)
-	_apply_room_air()
+	_push(target - dir * 24.0 + Vector3(0, 10.0, 0), target)
+
+
+# ------------------------------------------------------------- inspection ---
+
+## Free look, inheriting whatever the camera is doing now so entering it is not
+## a jump. From here the mouse orbits, pans and zooms — "reading the green".
+func view_inspect() -> void:
+	if rig != null:
+		rig.set_view("free")
+
+
+## Orbit the flag, seen from the tee's side of it: the approach the throw has to
+## make, which is the thing worth walking around.
+func focus_flag() -> void:
+	if rig == null:
+		return
+	var flag := flag_world()
+	var back := tee_world() - flag
+	back.y = 0.0
+	if back.length_squared() < 1.0:
+		back = Vector3(0.0, 0.0, 1.0)
+	rig.focus_from(flag, back.normalized() * 26.0 + Vector3(0.0, 11.0, 0.0))
+
+
+## Orbit a portal, from inside the room it opens into and square-on to it, which
+## is the one angle that says what is on the other side.
+func focus_portal(index: int = 0) -> bool:
+	if rig == null or _level == null or _level.portals.is_empty():
+		return false
+	var portal: LevelDataT.PortalData = _level.portals[posmod(index, _level.portals.size())]
+	var room: LevelDataT.RoomData = _level.get_room(portal.room)
+	var origin: Vector3 = room.world_origin if room != null else Vector3.ZERO
+	var centre: Vector3 = portal.world_center(origin)
+	# `facing` points INTO the room the portal is in, so that is the side to
+	# stand on.
+	var out := Vector3(portal.facing.x, 0.0, portal.facing.z)
+	if out.length_squared() < 1e-6:
+		out = Vector3(0.0, 0.0, 1.0)
+	var span: float = maxf(portal.width_m, portal.height_m)
+	rig.focus_from(centre, out.normalized() * (span * 1.4 + 12.0) + Vector3(0.0, 6.0, 0.0))
+	return true
+
+
+func portal_count() -> int:
+	return _level.portals.size() if _level != null else 0
+
+
+# --------------------------------------------------------- landing marker ---
+
+## Where the disc came to rest, as a thing on the floor. Without it the two
+## seconds this mode now holds after a throw are two seconds of looking at an
+## unmarked patch of ground — the trail says how it flew, not where it stopped.
+func set_landing_marker(at: Vector3) -> void:
+	clear_landing_marker()
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_LINES)
+	var c := T.ACCENT
+	var base := Vector3(at.x, _floor_y_at(at) + DECAL_LIFT, at.z)
+	for radius: float in [1.4, 2.6]:
+		_ring(st, base, radius, Color(c.r, c.g, c.b, 0.95), 40)
+	# A stalk, so the marker is findable from across a 130 m room and does not
+	# vanish into the floor grid at a shallow angle.
+	_line(st, base, base + Vector3(0.0, 3.2, 0.0), Color(c.r, c.g, c.b, 0.85))
+	for a: float in [0.0, PI * 0.5, PI, PI * 1.5]:
+		var d := Vector3(cos(a), 0.0, sin(a))
+		_line(st, base + d * 2.6, base + d * 4.2, Color(c.r, c.g, c.b, 0.55))
+	# The disc itself, lying where it stopped.
+	_ring(st, Vector3(at.x, at.y + DECAL_LIFT, at.z), 0.6, Color(1, 1, 1, 0.8), 20)
+	_landing_node = _attach(st, true)
+
+
+func clear_landing_marker() -> void:
+	if _landing_node != null:
+		_landing_node.queue_free()
+		_landing_node = null
+
+
+## The floor of the room a point is in — rooms do not all sit at y = 0.
+func _floor_y_at(p: Vector3) -> float:
+	if _level == null:
+		return 0.0
+	for r in _level.rooms:
+		var room: LevelDataT.RoomData = r
+		var lo := room.world_min()
+		var hi := room.world_max()
+		if p.x >= lo.x and p.x <= hi.x and p.z >= lo.z and p.z <= hi.z:
+			return lo.y
+	return 0.0
 
 
 static func _flat_dir(v: Vector3) -> Vector3:

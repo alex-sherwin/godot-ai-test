@@ -25,6 +25,8 @@ const FactsT := preload("res://scripts/ui/puzzle/level_facts.gd")
 const ThemeT := preload("res://scripts/ui/puzzle/puzzle_theme.gd")
 const LevelLibraryT := preload("res://scripts/puzzle/level_library.gd")
 const LevelDataT := preload("res://scripts/puzzle/level_data.gd")
+const OverlayT := preload("res://scripts/ui/puzzle/aim_overlay.gd")
+const RigT := preload("res://scripts/app/camera_rig.gd")
 
 ## Levels whose flight ends through an inverting portal. LEVEL_DESIGN §2:
 ## 8 is the dive itself, 9 places the entry for a fixed inverting exit, 10 does
@@ -34,6 +36,7 @@ const DIVE_LEVELS := ["08_the_drop", "09_under_the_lintel", "10_the_gauntlet"]
 
 func run(t: Object, _lib: Object) -> void:
 	_aim(t)
+	_camera(t)
 	_facts(t)
 	_theme(t)
 
@@ -237,6 +240,126 @@ func _facts(t: Object) -> void:
 		"offenders: %s" % str(offenders))
 
 	t.end_suite()
+
+
+# ============================================== the camera and inspection ===
+
+## Two claims, and both of them are about a player's throw surviving contact with
+## the camera:
+##
+##   1. NO GESTURE THAT MOVES THE CAMERA CAN MOVE THE AIM. The overlay is the one
+##      node that sees the pointer, so the whole rule is its `route()` and it can
+##      be asserted exhaustively instead of described.
+##   2. THE LANDING HOLD SHOWS THE LANDING. Two seconds of a camera pointed at an
+##      empty patch of ground is worse than the popup it replaced, so the pose is
+##      built here and the landing and the flag are checked to be inside the
+##      frame — and the landing below its centre, because a centred modal lands
+##      on top of it a moment later.
+func _camera(t: Object) -> void:
+	t.suite("camera rig and inspection")
+
+	# --- who owns which button -------------------------------------------
+	var aim_owned: Array = []
+	for b: int in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_WHEEL_UP,
+			MOUSE_BUTTON_WHEEL_DOWN]:
+		for shift: bool in [false, true]:
+			if OverlayT.route(b, shift, false) != OverlayT.ROUTE_AIM:
+				aim_owned.append("%d shift=%s" % [b, shift])
+	t.check("while aiming, every aim button still aims", aim_owned.is_empty(),
+		"stolen by the camera: %s" % str(aim_owned))
+
+	var leaked: Array = []
+	for b: int in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE,
+			MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		for shift: bool in [false, true]:
+			if OverlayT.route(b, shift, true) == OverlayT.ROUTE_AIM:
+				leaked.append("%d shift=%s" % [b, shift])
+	t.check("in inspect mode no mouse button reaches the aim", leaked.is_empty(),
+		"still aiming: %s" % str(leaked))
+
+	t.check("middle-drag is the camera in both modes",
+		OverlayT.route(MOUSE_BUTTON_MIDDLE, false, false) == OverlayT.ROUTE_ORBIT
+			and OverlayT.route(MOUSE_BUTTON_MIDDLE, true, false) == OverlayT.ROUTE_PAN,
+		"orbit, and pan with shift")
+	t.check("the wheel is hyzer while aiming and zoom while inspecting",
+		OverlayT.route(MOUSE_BUTTON_WHEEL_UP, false, false) == OverlayT.ROUTE_AIM
+			and OverlayT.route(MOUSE_BUTTON_WHEEL_UP, false, true) == OverlayT.ROUTE_ZOOM_IN,
+		"the one deliberate rebind")
+
+	# --- the orbit itself --------------------------------------------------
+	var rig = RigT.new()
+	rig.ground_y = 0.0
+	rig.focus_from(Vector3(10.0, 0.0, -20.0), Vector3(0.0, 12.0, 26.0))
+	var eye0: Vector3 = rig._pose_free()["pos"]
+	t.close("focus_from puts the eye exactly where it was asked to",
+		eye0.distance_to(Vector3(10.0, 12.0, 6.0)), 0.0, 0.01, "m")
+
+	rig.orbit(300.0, 0.0)
+	var eye1: Vector3 = rig._pose_free()["pos"]
+	t.check("an orbit drag swings the eye around the pivot without moving it",
+		absf(eye1.distance_to(Vector3(10.0, 0.0, -20.0))
+			- eye0.distance_to(Vector3(10.0, 0.0, -20.0))) < 0.01
+			and eye1.distance_to(eye0) > 5.0,
+		"moved %.1f m at a constant radius" % eye1.distance_to(eye0))
+
+	var before: Dictionary = rig.orbit_state()
+	rig.zoom_in()
+	t.close("a zoom step pulls in by the declared factor", rig.orbit_state()["distance"],
+		float(before["distance"]) * RigT.ZOOM_KEY_IN, 0.01, "m")
+	for _i in 60:
+		rig.zoom_in()
+	t.close("zoom cannot pass the near limit", rig.orbit_state()["distance"],
+		RigT.ZOOM_MIN, 1e-4, "m")
+
+	rig.zoom(50.0)
+	rig.pan(0.0, 10000.0)     # drag the pivot as far down as it will go
+	t.check("a pan can never push the pivot under the floor",
+		float(rig.orbit_state()["pivot"].y) >= rig.ground_y, "")
+	rig.free_bounds = AABB(Vector3(-50.0, 0.0, -50.0), Vector3(100.0, 30.0, 100.0))
+	rig.has_free_bounds = true
+	rig.focus_from(Vector3.ZERO, Vector3(0.0, 400.0, 0.0))
+	var high: Vector3 = rig._pose_free()["pos"]
+	t.check("free look stays inside the level's box", high.y <= 30.0 + 1e-3,
+		"y = %.1f m, ceiling 30 m" % high.y)
+
+	# --- the landing hold's framing ---------------------------------------
+	# Level 1's shape: the disc stops 20 m short of the flag, both in the far
+	# room, and the camera has two seconds to show that.
+	var landing := Vector3(130.0, 0.0, -4.0)
+	var flag := Vector3(130.0, 0.0, 16.0)
+	var shot = RigT.new()
+	shot.hold_landing(landing, flag, true)
+	var pose: Dictionary = shot._pose_for("landing")
+	var landing_at: Vector2 = _frame_angles(pose, landing)
+	var flag_at: Vector2 = _frame_angles(pose, flag)
+	# Half the vertical field, at the 60 deg the rig uses.
+	var half_fov := 30.0
+	t.check("the landing is in the frame during the hold",
+		absf(landing_at.y) < half_fov and absf(landing_at.x) < half_fov,
+		"%.1f deg across, %.1f deg up from the centre" % [landing_at.x, landing_at.y])
+	t.check("the flag is in the frame with it",
+		absf(flag_at.y) < half_fov and absf(flag_at.x) < half_fov,
+		"%.1f deg across, %.1f deg up" % [flag_at.x, flag_at.y])
+	t.check("the landing sits BELOW the centre, clear of the results card",
+		landing_at.y < -4.0, "%.1f deg below the centre" % -landing_at.y)
+	t.check("the camera stands off far enough to show the ground around it",
+		Vector3(pose["pos"]).distance_to(landing) > 15.0,
+		"%.1f m back" % Vector3(pose["pos"]).distance_to(landing))
+
+	t.end_suite()
+
+
+## Where a world point falls in a pose's frame, in degrees from the centre:
+## x across, y up. The camera basis is built the way `look_at` builds it.
+static func _frame_angles(pose: Dictionary, point: Vector3) -> Vector2:
+	var eye: Vector3 = pose["pos"]
+	var forward: Vector3 = (Vector3(pose["look"]) - eye).normalized()
+	var right: Vector3 = forward.cross(Vector3(pose["up"])).normalized()
+	var up: Vector3 = right.cross(forward).normalized()
+	var to: Vector3 = (point - eye).normalized()
+	return Vector2(
+		rad_to_deg(atan2(to.dot(right), to.dot(forward))),
+		rad_to_deg(asin(clampf(to.dot(up), -1.0, 1.0))))
 
 
 # =================================================================== theme ===

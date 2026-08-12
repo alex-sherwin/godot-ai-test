@@ -97,6 +97,11 @@ const STANDALONE := {
 ## The digit row is deliberately absent. In the sandbox 1-5 are the panel tabs,
 ## and a player who has learned that should not find that 1 loads a level here.
 ## Level choice is a screen (L), not a chord.
+## F, Home and the two zoom keys are the free camera. They are declared here and
+## handled in `PuzzleUi` rather than left to `CameraRig`'s own `_unhandled_input`
+## (which is how the sandbox reaches the same zoom) because in puzzle mode the
+## aim overlay owns the pointer and the rig never sees an event — see the note in
+## `scripts/ui/puzzle/aim_overlay.gd`.
 const PUZZLE := {
 	KEY_SPACE: "throw",
 	KEY_ENTER: "throw",
@@ -104,6 +109,13 @@ const PUZZLE := {
 	KEY_R: "retry",
 	KEY_A: "exact parameters",
 	KEY_C: "camera",
+	KEY_F: "inspect",
+	KEY_HOME: "camera to the tee",
+	# Both, because the key is labelled "+" and produces "=" unshifted, and a
+	# player pressing the key with the plus sign on it is not wrong.
+	KEY_EQUAL: "zoom in",
+	KEY_PLUS: "zoom in",
+	KEY_MINUS: "zoom out",
 	KEY_G: "ghost",
 	KEY_K: "hint",
 	KEY_L: "levels",

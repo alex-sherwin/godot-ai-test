@@ -29,11 +29,34 @@ extends Control
 ## through it loses 40-45% of its distance (PORTAL_CONTRACT §6) and nothing about
 ## the geometry says so.
 
+## ---------------------------------------------------------------------------
+## It also owns the CAMERA gestures, and that is deliberate
+## ---------------------------------------------------------------------------
+## This Control covers the viewport with `MOUSE_FILTER_STOP`, so every click and
+## every motion event reaches it before anything else in the tree — a camera
+## reading `_unhandled_input` underneath would never see a thing. Rather than
+## poke a hole in it, the overlay routes inspection gestures to the camera rig
+## itself. One node decides whether a drag is an aim or a camera move, so the two
+## cannot fight, and the rule is a single line:
+##
+##   INSPECT MODE     left-drag orbits, right-drag pans, the wheel zooms.
+##                    Aiming is suspended; the aim is NOT touched.
+##   AIMING (normal)  left-drag aims, right-drag shapes, the wheel is hyzer —
+##                    and MIDDLE-drag orbits (shift+middle pans) so the camera
+##                    can be nudged without leaving the aim.
+
 const T := preload("res://scripts/ui/flight_lab_theme.gd")
 const PT := preload("res://scripts/ui/puzzle/puzzle_theme.gd")
+const RigT := preload("res://scripts/app/camera_rig.gd")
 
 signal aim_dragged()
 signal drag_finished()
+## A click during the landing hold: the player is done looking, bring the results.
+signal hold_skipped()
+## A camera gesture arrived while the camera was in a fixed view. Free look is a
+## mode, so the mode has to be entered — otherwise middle-drag moves an orbit
+## nobody is looking through and reads as a dead control.
+signal inspect_requested()
 
 ## Behind-the-camera and absurd projections come back as huge coordinates;
 ## anything further than this outside the canvas is dropped rather than drawn.
@@ -41,6 +64,8 @@ const CULL_MARGIN := 4000.0
 
 var camera: Camera3D = null
 var controller: PuzzleAimController = null
+## The camera rig this overlay routes inspection gestures to. See the note above.
+var rig: CameraRig = null
 
 ## The prediction, pushed from Track P3's `PuzzleGhost`. Kept as plain fields
 ## rather than a reference to the predictor so the overlay can be driven by a
@@ -65,6 +90,22 @@ var aiming_enabled: bool = true
 ## Set while a disc is in the air: the ghost and the reticle are hidden, because
 ## a prediction for a throw that is already happening is noise.
 var in_flight: bool = false
+## Set for the beat after the disc stops, while the camera holds on the landing
+## and before any result panel appears. Same reasoning as `in_flight`: the next
+## throw's prediction drawn over the landing you are being shown is noise.
+var holding: bool = false
+## Set while the camera is in free look. The ghost and the reticle stay DRAWN —
+## seeing your line from a new angle is the point — but the drag no longer aims.
+var inspecting: bool = false
+
+## Where the disc came to rest, and what to say about it. Drawn from the moment
+## it lands until the next throw, so "Look at the landing" has something to look
+## at.
+var landing_position: Vector3 = Vector3.ZERO
+var landing_label: String = ""
+var show_landing: bool = false
+## Second line under the landing tag during the hold, e.g. how to skip it.
+var landing_hint: String = ""
 
 var _font: Font = null
 var _font_small: int = 11
@@ -92,8 +133,40 @@ func _process(_delta: float) -> void:
 
 # =================================================================== input ===
 
+## 0 none, 1 orbit, 2 pan. Camera drags are tracked separately from the aim drag
+## because they can happen while an aim is not in progress and must never write
+## the controller.
+var _cam_drag: int = 0
+
+
 func _gui_input(event: InputEvent) -> void:
-	if controller == null or not aiming_enabled:
+	# The landing beat: any click ends it, and nothing else happens. A click that
+	# both dismissed the hold AND re-aimed would mean the impatient player silently
+	# threw away their aim.
+	if holding:
+		var press := event as InputEventMouseButton
+		if press != null and press.pressed:
+			hold_skipped.emit()
+			accept_event()
+		return
+
+	# Camera gestures come first and do not care whether aiming is enabled:
+	# looking around is legal while a result panel is up — that is what its
+	# "Look at the landing" button is for — and while the aim is suspended.
+	var press := event as InputEventMouseButton
+	if press != null and _camera_button(press):
+		return
+	var move := event as InputEventMouseMotion
+	if move != null and _cam_drag != 0:
+		if rig != null:
+			if _cam_drag == 1:
+				rig.orbit(move.relative.x, move.relative.y)
+			else:
+				rig.pan(move.relative.x, move.relative.y)
+		accept_event()
+		return
+
+	if controller == null or not aiming_enabled or inspecting:
 		return
 
 	var button := event as InputEventMouseButton
@@ -123,13 +196,73 @@ func _gui_input(event: InputEvent) -> void:
 		return
 
 	var motion := event as InputEventMouseMotion
-	if motion != null and controller.drag != PuzzleAimController.Drag.NONE:
+	if motion == null:
+		return
+	if controller.drag != PuzzleAimController.Drag.NONE:
 		if controller.drag == PuzzleAimController.Drag.SHAPE:
 			controller.shape_to(motion.position)
 		else:
 			_aim_to(motion.position)
 		aim_dragged.emit()
 		accept_event()
+
+
+const ROUTE_AIM := "aim"
+const ROUTE_ORBIT := "orbit"
+const ROUTE_PAN := "pan"
+const ROUTE_ZOOM_IN := "zoom_in"
+const ROUTE_ZOOM_OUT := "zoom_out"
+
+
+## WHO OWNS THIS BUTTON. The whole no-fighting rule, as one pure function, so a
+## test can assert it exhaustively rather than a comment claiming it.
+##
+## In inspect mode the whole mouse belongs to the camera. Outside it, only the
+## middle button does — the two aim drags keep left and right exactly as they
+## were, and the wheel keeps nudging hyzer, because a control that changes
+## meaning under the player is worse than one they have to learn. The wheel
+## becoming zoom in inspect mode is that rebind made deliberately and in one
+## direction only: while you are aiming, the wheel is still hyzer.
+static func route(button_index: int, shift: bool, inspecting_now: bool) -> String:
+	if button_index == MOUSE_BUTTON_MIDDLE:
+		return ROUTE_PAN if shift else ROUTE_ORBIT
+	if not inspecting_now:
+		return ROUTE_AIM
+	match button_index:
+		MOUSE_BUTTON_LEFT:
+			return ROUTE_PAN if shift else ROUTE_ORBIT
+		MOUSE_BUTTON_RIGHT:
+			return ROUTE_PAN
+		MOUSE_BUTTON_WHEEL_UP:
+			return ROUTE_ZOOM_IN
+		MOUSE_BUTTON_WHEEL_DOWN:
+			return ROUTE_ZOOM_OUT
+	return ROUTE_AIM
+
+
+## Camera half of the button handling. Returns true when the event was a camera
+## gesture and the aim must not see it.
+func _camera_button(button: InputEventMouseButton) -> bool:
+	var owner := route(button.button_index, button.shift_pressed, inspecting)
+	if owner == ROUTE_AIM:
+		return false
+	if not inspecting and button.pressed:
+		inspect_requested.emit()
+	match owner:
+		ROUTE_ORBIT:
+			_cam_drag = 1 if button.pressed else 0
+		ROUTE_PAN:
+			_cam_drag = 2 if button.pressed else 0
+		ROUTE_ZOOM_IN:
+			if button.pressed and rig != null:
+				rig.zoom(RigT.ZOOM_WHEEL_IN)
+		ROUTE_ZOOM_OUT:
+			if button.pressed and rig != null:
+				rig.zoom(RigT.ZOOM_WHEEL_OUT)
+		_:
+			return false
+	accept_event()
+	return true
 
 
 func _aim_to(screen_point: Vector2) -> void:
@@ -159,11 +292,15 @@ func _draw() -> void:
 	if camera == null or controller == null:
 		return
 	_tag_rects.clear()
-	if aiming_enabled and not in_flight:
+	if aiming_enabled and not in_flight and not holding:
 		_draw_aim_line()
 		_draw_ghost()
 		_draw_reticle()
 		_draw_release_indicator()
+	# The landing is drawn whatever else is on screen, including under the results
+	# modal: dismissing that panel has to leave something to look at.
+	if show_landing:
+		_draw_landing()
 	if show_flag:
 		_draw_flag()
 
@@ -359,6 +496,27 @@ func _draw_release_indicator() -> void:
 	_draw_tag(p + Vector2(-118.0, 34.0), "hyzer %s%.1f°   launch %.1f°" % [
 		"+" if controller.hyzer_deg >= 0.0 else "", controller.hyzer_deg,
 		controller.launch_deg], T.TEXT_DIM)
+
+
+## Where the disc stopped, and how far that was from the flag. The 3D marker on
+## the floor (`PuzzleLevelPreview.set_landing_marker`) is the thing in the world;
+## this is the readout on top of it, in canvas space so it stays legible at any
+## distance and never ends up behind a wall.
+func _draw_landing() -> void:
+	var at: Variant = _project(landing_position)
+	if at == null:
+		return
+	var p: Vector2 = at
+	var c := T.ACCENT
+	draw_arc(p, 15.0, 0.0, TAU, 40, Color(c.r, c.g, c.b, 0.95), 2.0, true)
+	draw_arc(p, 24.0, 0.0, TAU, 48, Color(c.r, c.g, c.b, 0.30), 1.0, true)
+	for a: float in [0.25, 0.75, 1.25, 1.75]:
+		var d := Vector2(cos(a * PI), sin(a * PI))
+		draw_line(p + d * 8.0, p + d * 13.0, Color(c.r, c.g, c.b, 0.9), 1.5, true)
+	if not landing_label.is_empty():
+		_draw_tag(p + Vector2(30.0, -16.0), landing_label, c)
+	if not landing_hint.is_empty():
+		_draw_tag(p + Vector2(30.0, 22.0), landing_hint, T.TEXT_DIM)
 
 
 func _draw_flag() -> void:
