@@ -477,7 +477,10 @@ func _end_hold() -> void:
 		ui.set_throw_enabled(true)
 		ui.set_status("%s  %d disc%s left." % [str(_hold_pending.get("line", "Landed.")),
 			session.discs_remaining(), "" if session.discs_remaining() == 1 else "s"])
-		set_view("tee")
+		# Back to the tee to aim the next disc — unless the player took the camera
+		# somewhere themselves during the beat, in which case it is theirs.
+		if _view == "landing":
+			set_view("tee")
 	_hold_pending.clear()
 
 
