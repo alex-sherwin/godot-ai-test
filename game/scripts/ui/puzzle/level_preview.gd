@@ -223,6 +223,11 @@ func build(level: LevelDataT, world: WorldT) -> void:
 		rig.ground_y = _bounds.position.y
 		rig.free_bounds = _bounds.grow(60.0)
 		rig.has_free_bounds = true
+		# The focus stays much closer to the geometry than the eye does: it is the
+		# middle of the frame, and a level you can put off-screen by panning is a
+		# level you cannot read.
+		rig.pivot_bounds = _bounds.grow(6.0)
+		rig.has_pivot_bounds = true
 
 
 ## Portals and barriers change between throws — a button opens a gate, a portal

@@ -322,6 +322,18 @@ func _camera(t: Object) -> void:
 	t.check("free look stays inside the level's box", high.y <= 30.0 + 1e-3,
 		"y = %.1f m, ceiling 30 m" % high.y)
 
+	# The pivot is the middle of the frame, so it is held to the tighter box: a
+	# pan that walks the focus into the sky is a pan that loses the course, which
+	# is exactly what the browser caught with one box for both.
+	rig.pivot_bounds = AABB(Vector3(-20.0, 0.0, -20.0), Vector3(40.0, 12.0, 40.0))
+	rig.has_pivot_bounds = true
+	rig.pan(0.0, 100000.0)
+	rig.pan(100000.0, 0.0)
+	var pivot: Vector3 = rig.orbit_state()["pivot"]
+	t.check("a pan cannot walk the focus off the course",
+		pivot.y <= 12.0 + 1e-3 and pivot.x <= 20.0 + 1e-3 and pivot.x >= -20.0 - 1e-3,
+		"pivot at %s, box 40x12x40 from (-20, 0, -20)" % str(pivot))
+
 	# --- the landing hold's framing ---------------------------------------
 	# Level 1's shape: the disc stops 20 m short of the flag, both in the far
 	# room, and the camera has two seconds to show that.

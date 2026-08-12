@@ -72,10 +72,17 @@ var base_fov: float = 60.0
 ## The floor. The free camera never drops below it and a pan never pushes the
 ## pivot under it; puzzle rooms do not all have their floor at y = 0.
 var ground_y: float = 0.0
-## Optional box the free camera is kept inside, so an orbit cannot fly the
+## Optional box the free camera's EYE is kept inside, so an orbit cannot fly the
 ## player into the void 400 m from anything. Empty size = unbounded.
 var free_bounds := AABB()
 var has_free_bounds: bool = false
+## Optional box the PIVOT is kept inside, which is a tighter question: the pivot
+## is the centre of the frame, so it decides what the player is looking at, while
+## the eye only needs somewhere to stand. Measured in the browser with one box
+## for both: a pan put the focus 60 m above the rooms and filled the screen with
+## sky. Falls back to `free_bounds` when unset.
+var pivot_bounds := AABB()
+var has_pivot_bounds: bool = false
 
 var _view: String = "tee"
 var _switch_timer: float = 0.0
@@ -228,7 +235,9 @@ func pan(dx: float, dy: float) -> void:
 ## bottom corner and filled the screen with empty background.
 func _set_pivot(p: Vector3) -> void:
 	_orbit_pivot = p
-	if has_free_bounds:
+	if has_pivot_bounds:
+		_orbit_pivot = _orbit_pivot.clamp(pivot_bounds.position, pivot_bounds.end)
+	elif has_free_bounds:
 		_orbit_pivot = _orbit_pivot.clamp(free_bounds.position, free_bounds.end)
 	_orbit_pivot.y = maxf(_orbit_pivot.y, ground_y)
 
