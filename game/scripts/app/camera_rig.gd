@@ -219,6 +219,17 @@ func pan(dx: float, dy: float) -> void:
 	var scale: float = _orbit_dist * PAN_PER_PX
 	_orbit_pivot -= right * (dx * scale)
 	_orbit_pivot += Vector3.UP * (dy * scale)
+	_set_pivot(_orbit_pivot)
+
+
+## The pivot is the centre of the frame, so keeping it inside the level is what
+## guarantees there is always something to look at. Measured in the browser
+## without it: a long pan at 200 m of orbit radius put the whole course in the
+## bottom corner and filled the screen with empty background.
+func _set_pivot(p: Vector3) -> void:
+	_orbit_pivot = p
+	if has_free_bounds:
+		_orbit_pivot = _orbit_pivot.clamp(free_bounds.position, free_bounds.end)
 	_orbit_pivot.y = maxf(_orbit_pivot.y, ground_y)
 
 
@@ -240,7 +251,7 @@ func zoom_out() -> void:
 ## Entering free look first, so a snap-to-flag is also a way *into* inspection.
 func focus_on(point: Vector3, distance: float = -1.0) -> void:
 	set_view("free")
-	_orbit_pivot = point
+	_set_pivot(point)
 	if distance > 0.0:
 		_orbit_dist = clampf(distance, ZOOM_MIN, ZOOM_MAX)
 
@@ -249,7 +260,7 @@ func focus_on(point: Vector3, distance: float = -1.0) -> void:
 ## relative to it. This is what "look back down the line at the flag" is.
 func focus_from(point: Vector3, eye_offset: Vector3) -> void:
 	set_view("free")
-	_orbit_pivot = point
+	_set_pivot(point)
 	_set_orbit_offset(eye_offset)
 
 
@@ -291,9 +302,29 @@ func reset_framing() -> void:
 	_heading = Vector3(0.0, 0.0, -1.0)
 
 
-func _process(delta: float) -> void:
+## Camera time is WALL-CLOCK time, not `_process`'s delta.
+##
+## Godot caps the delta it reports so a slow frame cannot run away with the
+## physics: at `max_physics_steps_per_frame` = 8 and 60 Hz physics, `delta` never
+## exceeds 0.133 s however long the frame actually took. That is right for a
+## simulation and wrong for a transition, which is a promise about how long the
+## PLAYER waits. Measured in the exported build under SwiftShader at ~1.2 fps: a
+## 1.1 s ease took nine real seconds, and every camera move read as a fault.
+## Nothing downstream of this node is simulated, so it uses the real clock, with
+## a one-second ceiling on a single step in case the tab was backgrounded.
+const MAX_REAL_STEP := 1.0
+
+var _last_us: int = 0
+
+
+func _process(_delta: float) -> void:
 	if camera == null:
 		return
+	var now := Time.get_ticks_usec()
+	if _last_us == 0:
+		_last_us = now
+	var delta: float = clampf(float(now - _last_us) / 1.0e6, 0.0, MAX_REAL_STEP)
+	_last_us = now
 	_switch_timer = maxf(_switch_timer - delta, 0.0)
 	_apply(_pose_for(_view), false, delta)
 

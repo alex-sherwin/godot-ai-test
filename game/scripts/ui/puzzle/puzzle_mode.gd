@@ -77,10 +77,10 @@ var _view_before_inspect: String = "tee"
 var _flying: bool = false
 var _throw_index: int = -1
 var _last_ghost_kind: String = ""
-## The landing hold: whether one is running, how long is left of it, and what was
-## deferred until it ends. `_hold_pending` carries the status line always and an
-## `outcome` only when the attempt is over and a results card is owed.
-var _hold_left: float = 0.0
+## The landing hold: whether one is running, when it started (wall-clock, see
+## `_process`), and what was deferred until it ends. `_hold_pending` carries the
+## status line always and an `outcome` only when the attempt is over and a
+## results card is owed.
 var _hold_pending: Dictionary = {}
 var _holding: bool = false
 var _hold_started_ms: int = 0
@@ -321,10 +321,13 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_report_stage()
-	if _holding:
-		_hold_left -= delta
-		if _hold_left <= 0.0:
-			_end_hold()
+	# WALL-CLOCK, not `delta`. Godot caps the delta it reports so a slow frame
+	# cannot run away with the physics, which means a countdown driven by it is a
+	# countdown in *rendered* time: measured in the exported build under
+	# SwiftShader at ~1.2 fps, this two-second beat lasted thirteen real seconds.
+	# The hold is a promise about how long the player waits.
+	if _holding and Time.get_ticks_msec() - _hold_started_ms >= int(LANDING_HOLD_S * 1000.0):
+		_end_hold()
 	if _flying or _level == null:
 		return
 	# The predictor decides when to integrate; this only gives it a clock.
@@ -416,7 +419,6 @@ func _land() -> void:
 	if session.attempt_over():
 		_hold_pending["outcome"] = _outcome(record)
 		_hold_pending["has_next"] = _level_index + 1 < levels.size()
-	_hold_left = LANDING_HOLD_S
 	_holding = true
 	_hold_started_ms = Time.get_ticks_msec()
 	_predict_now()
@@ -458,7 +460,6 @@ func _end_hold() -> void:
 	if not _holding:
 		return
 	_holding = false
-	_hold_left = 0.0
 	ui.end_landing_hold()
 	# The beat is a claim about what the player was shown and for how long, and
 	# the HUD is inside the canvas where no driver can read it. This line is how
@@ -484,7 +485,6 @@ func _end_hold() -> void:
 ## moved on (retry, a new level, another throw).
 func _cancel_hold() -> void:
 	_holding = false
-	_hold_left = 0.0
 	_hold_pending.clear()
 	if ui != null:
 		ui.end_landing_hold()

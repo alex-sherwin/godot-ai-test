@@ -96,7 +96,12 @@ var _idle_pose := Vector3(0.0, 1.4, 0.0)
 var _perf_report_t: float = 0.0
 var _perf_reports: int = 0
 var _last_result: DiscFlightSim.FlightResult = null
-var _hold_left: float = 0.0
+## Wall-clock, not accumulated `delta`: Godot caps the delta it reports so a slow
+## frame cannot run away with the physics, and a beat counted in that unit is a
+## beat in RENDERED time — thirteen real seconds at the 1.2 fps the exported
+## build manages under SwiftShader. See `CameraRig.MAX_REAL_STEP`, which is the
+## same problem for the easing.
+var _hold_started_ms: int = 0
 var _held_result: DiscFlightSim.FlightResult = null
 
 const DISC_COLORS: Array[Color] = [
@@ -429,10 +434,9 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
-	if _hold_left > 0.0:
-		_hold_left -= delta
-		if _hold_left <= 0.0:
-			_end_landing_hold()
+	if _held_result != null and Time.get_ticks_msec() - _hold_started_ms \
+			>= int(LANDING_HOLD_S * 1000.0):
+		_end_landing_hold()
 	# Screen-size floor for the disc; see VISUAL_ANGULAR_FLOOR.
 	if _rig and _rig.camera and _disc_node:
 		var d: float = _rig.camera.global_position.distance_to(_disc_node.global_position)
@@ -537,7 +541,7 @@ func _land(st: DiscFlightSim.DiscState) -> void:
 		r.distance_m, r.lateral_m, r.max_height_m, r.flight_time_s])
 
 	_held_result = r
-	_hold_left = LANDING_HOLD_S
+	_hold_started_ms = Time.get_ticks_msec()
 	# Only take the camera if it was watching the flight. Someone who picked the
 	# top or side view picked it to read the shape, and hijacking that would be a
 	# worse interruption than the one this hold exists to remove.
@@ -557,8 +561,8 @@ func _end_landing_hold() -> bool:
 	_held_result = null
 	# Same reason as the landing line above: the panel is inside the canvas, so
 	# how long the summary waited is only checkable from the console.
-	print("[FlightApp] summary after %.2f s hold" % (LANDING_HOLD_S - maxf(_hold_left, 0.0)))
-	_hold_left = 0.0
+	print("[FlightApp] summary after %.2f s hold"
+		% ((Time.get_ticks_msec() - _hold_started_ms) / 1000.0))
 	# The legend is only refreshed from the live-telemetry path, which stops
 	# with the flight; the new ghost has to be pushed explicitly.
 	if _hud.is_enabled():
