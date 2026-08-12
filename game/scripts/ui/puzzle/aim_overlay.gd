@@ -144,8 +144,8 @@ func _gui_input(event: InputEvent) -> void:
 	# both dismissed the hold AND re-aimed would mean the impatient player silently
 	# threw away their aim.
 	if holding:
-		var press := event as InputEventMouseButton
-		if press != null and press.pressed:
+		var skip := event as InputEventMouseButton
+		if skip != null and skip.pressed:
 			hold_skipped.emit()
 			accept_event()
 		return
